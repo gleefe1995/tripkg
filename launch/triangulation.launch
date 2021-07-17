@@ -1,4 +1,4 @@
 <launch>
-  <node pkg="tripkg" type="triangulation" name="tri"  output="screen" />
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find tripkg)/rviz/settings.rviz" />
+ 
 </launch>

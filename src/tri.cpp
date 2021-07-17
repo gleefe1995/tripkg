@@ -6,7 +6,7 @@
 #define MAX_FRAME 5000
 #define MIN_NUM_FEAT 2000
 #define MAX_CORNERS 1500
-#define local_ba_frame 12
+#define local_ba_frame 10
 #define reprojectionError 3
 #define max_feature_number 300
 #define local_ba 1
@@ -15,14 +15,15 @@
 #define min_keyframe 5
 #define MAX_IMAGE_NUMBER 1101
 #define parallax_def 0
+#define max_distance 100
 // const double focal = 718.8560; //00-02
 //     const cv::Point2d pp(607.1928, 185.2157);
     // const double focal = 721.5377; //03
     // const cv::Point2d pp(609.5593, 172.854);
     const double focal = 707.0912; //04-12
     const cv::Point2d pp(601.8873, 183.1104);
-const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/06/image_0/%06d.png";
-string path_to_pose = "/home/gleefe/Downloads/dataset/poses/06.txt";
+const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/05/image_0/%06d.png";
+string path_to_pose = "/home/gleefe/Downloads/dataset/poses/05.txt";
 
 
 using namespace std;
@@ -1139,7 +1140,7 @@ if (prevFeatures.size() < 200)	{
              &&(sqrt(point_diff_x+point_diff_y)<reprojectionError)
             &&(parallax2>=parallax_def)
             //&&(sqrt( dist_x+dist_y+dist_z )<distance_prev_keyframe*40)
-            //&&(sqrt( dist_x+dist_y+dist_z )<100)
+            &&(sqrt( dist_x+dist_y+dist_z )<max_distance)
             ){ /////////////here
             //&&(sqrt(point_diff_x+point_diff_y)<5)
         // cout<<sqrt(point_diff_x+point_diff_y)<<"\n";
@@ -1275,7 +1276,7 @@ vector<pair<int,pair<int,Point3d>>> point_3d_map_tmp_tmp=point_3d_map_tmp_tmp2;
              //&&(sqrt( dist_x+dist_y+dist_z )>5)
            (c>0)&&(d>0)&&(c<currImage.cols)&&(d<currImage.rows)
              &&(sqrt(point_diff_x+point_diff_y)<reprojectionError)
-             //&&(sqrt( dist_x+dist_y+dist_z )<100)
+             &&(sqrt( dist_x+dist_y+dist_z )<max_distance)
             ){ /////////////here
             repro_sum+=sqrt(point_diff_x+point_diff_y);
             //&&(sqrt(point_diff_x+point_diff_y)<5)

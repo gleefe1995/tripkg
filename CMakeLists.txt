@@ -247,9 +247,9 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-add_executable(mono-vo src/tri.cpp)
-target_link_libraries(mono-vo ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${G2O_LIBS} ${CSPARSE_LIBRARY})
-target_link_libraries(mono-vo
+add_executable(monovo src/tri.cpp)
+target_link_libraries(monovo ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${G2O_LIBS} ${CSPARSE_LIBRARY})
+target_link_libraries(monovo
 ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 )
 
