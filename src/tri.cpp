@@ -6,7 +6,7 @@
 #define MAX_FRAME 5000
 #define MIN_NUM_FEAT 2000
 #define MAX_CORNERS 1500
-#define local_ba_frame 10
+#define local_ba_frame 12
 #define reprojectionError 3
 #define max_feature_number 300
 #define local_ba 1
@@ -15,15 +15,15 @@
 #define min_keyframe 5
 #define MAX_IMAGE_NUMBER 1101
 #define parallax_def 0
-#define max_distance 100
+#define max_distance 150
 // const double focal = 718.8560; //00-02
 //     const cv::Point2d pp(607.1928, 185.2157);
     // const double focal = 721.5377; //03
     // const cv::Point2d pp(609.5593, 172.854);
     const double focal = 707.0912; //04-12
     const cv::Point2d pp(601.8873, 183.1104);
-const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/05/image_0/%06d.png";
-string path_to_pose = "/home/gleefe/Downloads/dataset/poses/05.txt";
+const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/06/image_0/%06d.png";
+string path_to_pose = "/home/gleefe/Downloads/dataset/poses/06.txt";
 
 
 using namespace std;
@@ -52,6 +52,7 @@ int main(int argc, char **argv){
     ros::NodeHandle n;
     ros::Publisher world_points_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("world_points", 1);
     ros::Publisher traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("traj", 1);
+    ros::Publisher gt_traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("gt_traj", 1);
     ros::Publisher tracking_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("tracking", 1);
     ros::Publisher keyframe_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("keyframe", 1);
     // ros::Publisher image_pub = nh.advertise<std_msgs::UInt8MultiArray>("/camera/image", 1);
@@ -64,9 +65,9 @@ int main(int argc, char **argv){
             = g2o::make_unique<g2o::BlockSolverX>(std::move(linear_solver));
     g2o::OptimizationAlgorithm* algorithm
             = new g2o::OptimizationAlgorithmLevenberg(std::move(block_solver));
-    g2o::SparseOptimizer* optimizer = new g2o::SparseOptimizer;
-    optimizer->setAlgorithm(algorithm);
-    optimizer->setVerbose(true);
+    // g2o::SparseOptimizer* optimizer = new g2o::SparseOptimizer;
+    // optimizer->setAlgorithm(algorithm);
+    // optimizer->setVerbose(true);
     
     //g2o sim3
     typedef g2o::BlockSolver<g2o::BlockSolverTraits<7, 7>> BlockSolverType;
@@ -75,9 +76,9 @@ int main(int argc, char **argv){
     auto solver = new g2o::OptimizationAlgorithmLevenberg(
       g2o::make_unique<BlockSolverType>(g2o::make_unique<LinearSolverType>()));
 
-    g2o::SparseOptimizer optimizer_sim3;
-    optimizer_sim3.setAlgorithm(solver);
-    optimizer_sim3.setVerbose(true);
+    // g2o::SparseOptimizer optimizer_sim3;
+    // optimizer_sim3.setAlgorithm(solver);
+    // optimizer_sim3.setVerbose(true);
 
 
 
@@ -217,6 +218,11 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud2(new pcl::PointCloud<pcl::PointXYZR
       msg2->header.frame_id = "map";
       msg2->height = cloud2->height;
       msg2->width = cloud2->width;
+
+ pcl::PointCloud<pcl::PointXYZRGB>::Ptr gt_msg(new pcl::PointCloud<pcl::PointXYZRGB>);
+gt_msg->header.frame_id = "map";
+      gt_msg->height = cloud2->height;
+      gt_msg->width = cloud2->width;
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud3(new pcl::PointCloud<pcl::PointXYZRGB>);
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr msg4(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -283,10 +289,18 @@ int tri_numFrame;
     vector<Point3d> rvec_vec;
     vector<Point3d> tvec_vec;
 
+    vector<Point3d> rvec_vec_loop;
+    vector<Point3d> tvec_vec_loop;
     
 vector<pair<int,pair<int,Point3d>>> BA_3d_points_map;
 vector<pair<int,pair<int,Point2f>>> BA_2d_points_map;
+
+vector<pair<int,pair<int,Point3d>>> BA_3d_points_map_loop;
+vector<pair<int,pair<int,Point2f>>> BA_2d_points_map_loop;
+
 vector<int> number_of_3d_points;
+vector<int> number_of_3d_points_loop;
+
 
 vector<int> BA_3d_map_points;
 
@@ -311,11 +325,56 @@ double tracking_number_current=0;
  
   vector<Point3d> t_solve_f_vec;
   vector<Mat> R_solve_inv_vec;
+
+  
+
   vector<int> numFrame_vec;
 
-  vector<g2o::SE3Quat> gt_poses;
-
+  cloud2->points.resize(MAX_FRAME);
+    trajectory = cloud2->points[0];
+    trajectory.x=0;
+    trajectory.y=0;
+    trajectory.z=0;
+    trajectory.r=0;
+    trajectory.g=255;
+    trajectory.b=0;
+msg2->points.push_back(trajectory);
+traj_pub.publish(msg2);
   vector<Eigen::Quaterniond> quat_vec;
+
+  int keyframe_number=0;
+
+  int once_loop_detected=0;
+
+  vector<KeyPoint> keypoints_tmp;
+      
+      Mat descriptor_tmp;
+      // KeyPoint::convert( prevFeatures, keypoints_1);
+      //detector->compute(currImage,keypoints_1,descriptor_1);
+      Mat mask_tmp;
+      detector->detectAndCompute(prevImage, mask_tmp, keypoints_tmp, descriptor_tmp);
+      
+       features.push_back(vector<cv::Mat >());
+      changeStructure(descriptor_tmp, features.back());
+      
+      QueryResults ret;
+      testDatabase(features,db,Isloopdetected,keyframe_prev,keyframe_curr);
+
+t_solve_f_vec.push_back(Point3d(0,0,0));
+      
+    
+    
+      //numFrame_vec.push_back(numFrame);
+      Eigen::Matrix3d mat_eig;
+      Mat mat_identity=Mat::eye(Size(3,3),CV_64F);
+      for (int i=0;i<3;i++){
+            for(int j=0;j<3;j++){
+              mat_eig(i,j)=mat_identity.at<double>(i,j);
+            }
+          }
+      Eigen::Quaterniond quat(mat_eig);
+      quat_vec.push_back(quat);
+
 // -------------------------------------------------------------------------------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -411,16 +470,9 @@ double tracking_number_current=0;
          
     
 
-      cloud2->points.resize(MAX_FRAME);
-    trajectory = cloud2->points[numFrame];
-    trajectory.x=t_f.at<double>(0);
-    trajectory.y=t_f.at<double>(1);
-    trajectory.z=t_f.at<double>(2);
-    trajectory.r=138;
-    trajectory.g=43;
-    trajectory.b=226;
+      
+    //msg2->points.push_back(trajectory);
     
-    msg2->points.push_back(trajectory);
 
     
     trajectory.x=gt_x;
@@ -429,9 +481,9 @@ double tracking_number_current=0;
     trajectory.r=0;
     trajectory.g=0;
     trajectory.b=255.0f;
-    msg2->points.push_back(trajectory);
+    gt_msg->points.push_back(trajectory);
 
-    traj_pub.publish(msg2);
+    gt_traj_pub.publish(gt_msg);
     
     image_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", currImage_c).toImageMsg();
     image_pub.publish(image_msg);
@@ -579,7 +631,56 @@ if (prevFeatures.size() < 200)	{
     // cout<<currFeatures.size()<<"\n";
     // waitKey();
     if (currFeatures.size()>0.1*200){
+      keyframe_number++;
+      trajectory.x=t_f.at<double>(0);
+    trajectory.y=t_f.at<double>(1);
+    trajectory.z=t_f.at<double>(2);
+    trajectory.r=0;
+    trajectory.g=255;
+    trajectory.b=0;
+      msg2->points.push_back(trajectory);
+
+      vector<KeyPoint> keypoints_tmp;
       
+      Mat descriptor_tmp;
+      // KeyPoint::convert( prevFeatures, keypoints_1);
+      //detector->compute(currImage,keypoints_1,descriptor_1);
+      Mat mask_tmp;
+      detector->detectAndCompute(currImage, mask_tmp, keypoints_tmp, descriptor_tmp);
+      
+       features.push_back(vector<cv::Mat >());
+      changeStructure(descriptor_tmp, features.back());
+      
+      QueryResults ret;
+      testDatabase(features,db,Isloopdetected,keyframe_prev,keyframe_curr);
+
+t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<double>(2)));
+      
+      //numFrame_vec.push_back(numFrame);
+      Eigen::Matrix3d mat_eig;
+      // Mat mat_identity=Mat::eye(Size(3,3),CV_64F);
+      for (int i=0;i<3;i++){
+            for(int j=0;j<3;j++){
+              mat_eig(i,j)=R_f.at<double>(i,j);
+            }
+          }
+      Eigen::Quaterniond quat(mat_eig);
+      quat_vec.push_back(quat);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     featureDetection(prevImage, new_prevFeatures,new_prev_points_map,keyframe_num,MAX_CORNERS);
     
     
@@ -591,6 +692,7 @@ if (prevFeatures.size() < 200)	{
       t_tri = t_f2.clone();
       
       Rodrigues(R_f1t,local_rvec);
+
       local_tvec=t_f1.clone();
       // numFrame_vec.push_back(numFrame);
       // rvec_vec.push_back(Point3d(local_rvec.at<double>(0),local_rvec.at<double>(1),local_rvec.at<double>(2)));
@@ -618,8 +720,16 @@ if (prevFeatures.size() < 200)	{
       numFrame_prev=numFrame;
       tri_numFrame=numFrame;
       
+
+
+
+
+
+
+
       world_points_pub.publish(msg);
       traj_pub.publish(msg2);
+      
       
       
       
@@ -1325,6 +1435,7 @@ vector<pair<int,pair<int,Point3d>>> point_3d_map_tmp_tmp=point_3d_map_tmp_tmp2;
 //***********************************************************************************************Add local ba points**************************************************************************************************************
 
 if ((numFrame-numFrame_prev>=min_keyframe)||(rot_ang_diff>1.5)){
+        keyframe_number++;
         if (number_of_3d_points.size()==local_ba_frame){
         BA_3d_points_map.erase(BA_3d_points_map.begin(),BA_3d_points_map.begin()+number_of_3d_points[0]);
         BA_2d_points_map.erase(BA_2d_points_map.begin(),BA_2d_points_map.begin()+number_of_3d_points[0]);
@@ -1350,29 +1461,32 @@ if ((numFrame-numFrame_prev>=min_keyframe)||(rot_ang_diff>1.5)){
 
     
 
-        // cloud2->points.resize(MAX_FRAME);
-    trajectory = cloud2->points[numFrame];
-    trajectory.x=t_solve_f_tmp.at<double>(0);
-    trajectory.y=t_solve_f_tmp.at<double>(1);
-    trajectory.z=t_solve_f_tmp.at<double>(2);
-    trajectory.r=255.0f;
-    trajectory.g=0;
-    trajectory.b=0;
-    
-    msg2->points.push_back(trajectory);
+    // cloud2->points.resize(MAX_FRAME);
+    // trajectory = cloud2->points[keyframe_number-local_ba_frame];
+    // trajectory.x=t_solve_f_tmp.at<double>(0);
+    // trajectory.y=t_solve_f_tmp.at<double>(1);
+    // trajectory.z=t_solve_f_tmp.at<double>(2);
+    // trajectory.r=0;
+    // trajectory.g=255;
+    // trajectory.b=0;
+    // msg2->points.erase(msg2->points.begin()+keyframe_number-local_ba_frame);
+    // msg2->points.insert(msg2->points.begin()+keyframe_number-local_ba_frame,trajectory);
     
         rvec_vec.erase(rvec_vec.begin());
         tvec_vec.erase(tvec_vec.begin());
       }
-      
+      //traj_pub.publish(msg2);
 
       for (int i=0;i<point_3d_map.size();i++){
         BA_3d_points_map.push_back(point_3d_map[i]);
         BA_2d_points_map.push_back(prev_points_map[i]);
 
+        BA_3d_points_map_loop.push_back(point_3d_map[i]);
+        BA_2d_points_map_loop.push_back(prev_points_map[i]);
       }
-      number_of_3d_points.push_back(point_3d_map.size());
 
+      number_of_3d_points.push_back(point_3d_map.size());
+      number_of_3d_points_loop.push_back(point_3d_map.size());
       
       BA_3d_points_map_tmp=BA_3d_points_map;
       int BA_3d_points_map_tmp_size=BA_3d_points_map_tmp.size();
@@ -1419,6 +1533,7 @@ if ((numFrame-numFrame_prev>=min_keyframe)||(rot_ang_diff>1.5)){
       
       tvec_vec.push_back(Point3d( tvec.at<double>(0),tvec.at<double>(1),tvec.at<double>(2) ));
       
+       
 numFrame_prev=numFrame-1;
 
       //***************************************************************************************************local BA***************************************************************************************************************//
@@ -1449,9 +1564,13 @@ if (number_of_3d_points.size()==local_ba_frame){
     Eigen::MatrixXd BA_3d_points_eig(3,BA_3d_points_map_tmp.size());
     Eigen::VectorXi number_of_3d_points_eig(number_of_3d_points.size());
     
+    int half_3d_points=0;
     for (int i=0;i<local_ba_frame;i++){
       number_of_3d_points_eig[i]=number_of_3d_points[i];
       //cout<<number_of_3d_points_eig[i]<<"\n";
+      if (i<local_ba_frame/2){
+        half_3d_points+=number_of_3d_points_eig[i];
+      }
     }
     
 
@@ -1469,23 +1588,34 @@ if (number_of_3d_points.size()==local_ba_frame){
     
     int index=0;
     
+    cout<<half_3d_points<<"\n";
     //-number_of_3d_points[local_ba_frame-1]
     for (int i = 0; i < BA_2d_points_map.size(); i++) {
           index++;
           //cout<<BA_2d_points_map.at(i).first*10000+BA_2d_points_map.at(i).second.first<<"\n";
           auto it =find(BA_3d_map_points.begin(), BA_3d_map_points.end(), BA_2d_points_map.at(i).first*10000+BA_2d_points_map.at(i).second.first);
           
-          if (it==BA_3d_map_points.end()){
-            cout<<"fail"<<"\n";
-            
-            waitKey();
-          }
           //auto it = BA_3d_map_points.find(BA_2d_points_map[j].at(i).first*1000+BA_2d_points_map[j].at(i).second.first);
           BA_2d_points_eig[0]=(double)BA_2d_points_map.at(i).second.second.x;
           BA_2d_points_eig[1]=(double)BA_2d_points_map.at(i).second.second.y;
           
           //cout<<it-BA_3d_map_points.begin()<<"\n";
+          /*
+          if (i<half_3d_points){
+                // cout<<i<<"\n";
+              ceres::CostFunction* cost_function2 = 
+          new ceres::AutoDiffCostFunction<SnavelyReprojectionError_Local_pose_fixed, 2,3>(
+            new SnavelyReprojectionError_Local_pose_fixed(BA_2d_points_eig[0],BA_2d_points_eig[1],focal,pp.x,pp.y,i,number_of_3d_points_eig,rvec_eig_local,tvec_eig_local)
+          );
+       
+    
+    problem2.AddResidualBlock(cost_function2,
+                             NULL ,
+                             BA_3d_points_eig.col(it-BA_3d_map_points.begin()).data());
 
+          }
+          else{
+            */
            ceres::CostFunction* cost_function2 = 
           new ceres::AutoDiffCostFunction<SnavelyReprojectionError_Local, 2, 3*local_ba_frame,3*local_ba_frame,3>(
             new SnavelyReprojectionError_Local(BA_2d_points_eig[0],BA_2d_points_eig[1],focal,pp.x,pp.y,i,number_of_3d_points_eig)
@@ -1497,17 +1627,19 @@ if (number_of_3d_points.size()==local_ba_frame){
                              rvec_eig_local.data(),
                              tvec_eig_local.data(),
                              BA_3d_points_eig.col(it-BA_3d_map_points.begin()).data());
-      }
+          }
+      
+     // }
       
     //   cout<<"BA_3d_points_map_tmp size: "<<BA_3d_points_map_tmp.size()<<"\n";
     //  waitKey();
       
   cout<<"local BA solver start"<<"\n";
   ceres::Solver::Options options;
-  options.linear_solver_type = ceres::SPARSE_SCHUR;
+  options.linear_solver_type = ceres::DENSE_SCHUR;
   options.minimizer_progress_to_stdout = false;
   options.num_threads = 12;
-  options.max_num_iterations=10;
+  options.max_num_iterations=100;
 
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem2, &summary);
@@ -1593,6 +1725,8 @@ Rodrigues(rvec,R_solve);
     // waitKey(1000);
     t_solve_f = -R_solve_inv*tvec;
     
+
+    
   //cout<<"after local ba tvec: "<<tvec.at<double>(0)<<" "<<tvec.at<double>(1)<<" "<<tvec.at<double>(2)<<"\n";
   
 //************************************draw after local ba**********************************
@@ -1631,10 +1765,19 @@ int repro_sum=0;
     cout<<"local BA end"<<"\n";
 }
 #endif
-
+//********************************************************************************************************localBA end******************************************************************************************************************//
 #if (loopclosing)
       t_solve_f_vec.push_back(Point3d(t_solve_f.at<double>(0),t_solve_f.at<double>(1),t_solve_f.at<double>(2)));
-      numFrame_vec.push_back(numFrame);
+       trajectory = cloud2->points[keyframe_number];
+    trajectory.x=t_solve_f.at<double>(0);
+    trajectory.y=t_solve_f.at<double>(1);
+    trajectory.z=t_solve_f.at<double>(2);
+    trajectory.r=0;
+    trajectory.g=255.0f;
+    trajectory.b=0;
+    
+    msg2->points.push_back(trajectory);
+      //numFrame_vec.push_back(numFrame);
       Eigen::Matrix3d mat_eig;
       for (int i=0;i<3;i++){
             for(int j=0;j<3;j++){
@@ -1663,12 +1806,19 @@ int repro_sum=0;
       QueryResults ret;
       testDatabase(features,db,Isloopdetected,keyframe_prev,keyframe_curr);
       
-      if (Isloopdetected){
+      if (Isloopdetected&&once_loop_detected==0){
+        vector<g2o::SE3Quat> gt_poses;
         cout<<"loop closing start"<<"\n";
         cout<<"keyframe_prev id: "<<keyframe_prev<<"\n";
         cout<<"keyframe_curr id: "<<keyframe_curr<<"\n";
-
+        cout<<"t_solve_f_vec size: "<<t_solve_f_vec.size()<<"\n";
         //first, set fixed vertex
+          g2o::SparseOptimizer* optimizer = new g2o::SparseOptimizer;
+          optimizer->setAlgorithm(algorithm);
+          optimizer->setVerbose(true);
+          g2o::SparseOptimizer optimizer_sim3;
+          optimizer_sim3.setAlgorithm(solver);
+          optimizer_sim3.setVerbose(true);
         {
           
           Eigen::Vector3d trans;
@@ -1687,7 +1837,7 @@ int repro_sum=0;
           // Eigen::Matrix3d mat_eig;
           Eigen::Vector3d trans;
 
-          for (int k=keyframe_prev+1;k<keyframe_curr;k++){
+          for (int k=keyframe_prev+1;k<=keyframe_curr;k++){
             trans[0]=t_solve_f_vec[k].x;
             trans[1]=t_solve_f_vec[k].y;
             trans[2]=t_solve_f_vec[k].z;
@@ -1714,16 +1864,7 @@ int repro_sum=0;
           Eigen::Quaterniond quat0;
 
         // the last  vertex is same with the first one
-          int numFrame0=numFrame_vec[keyframe_prev];
-          int numFrame1=numFrame_vec[keyframe_curr];
-          sprintf(filename, path_to_image, numFrame0);
-  	      Mat image_loop0_c = imread(filename);
-          Mat image_loop0;
-  	      cvtColor(image_loop0_c, image_loop0, COLOR_BGR2GRAY);
-          sprintf(filename, path_to_image, numFrame1);
-          Mat image_loop1_c = imread(filename);
-          Mat image_loop1;
-          cvtColor(image_loop1_c, image_loop1, COLOR_BGR2GRAY);
+          
 
 
           trans = Eigen::Vector3d(0,0,0);
@@ -1782,37 +1923,294 @@ int repro_sum=0;
         optimizer_sim3.initializeOptimization();
         optimizer_sim3.optimize(100);
 
+        t_solve_f_vec.erase(t_solve_f_vec.begin()+keyframe_prev,t_solve_f_vec.begin()+keyframe_curr);
+        quat_vec.erase(quat_vec.begin()+keyframe_prev,quat_vec.begin()+keyframe_curr);
+        rvec_vec.clear();
+        tvec_vec.clear();
+        msg2->points.erase(msg2->points.begin()+keyframe_prev,msg2->points.begin()+keyframe_curr+1);
+        // msg2->points.clear();
         
+        tracking_pub.publish(msg2);
+      // msg4->points.clear();
       for (int i=0;i<gt_poses.size();i++){
          
         //g2o::VertexSE3* vtx = dynamic_cast<g2o::VertexSE3*>(optimizer->vertex(i));
         g2o::VertexSim3Expmap* vtx =
         static_cast<g2o::VertexSim3Expmap*>(optimizer_sim3.vertex(i));
         g2o::Sim3 sim3 = vtx->estimate().inverse();
-        // Eigen::Matrix3d r = sim3.rotation().toRotationMatrix();
+        g2o::Sim3 sim3_inv = vtx->estimate();
+        Eigen::Matrix3d r = sim3.rotation().toRotationMatrix();
         Eigen::Vector3d t = sim3.translation();
+
+        Eigen::Matrix3d r_inv = sim3_inv.rotation().toRotationMatrix();
+        Eigen::Vector3d t_inv = sim3_inv.translation();
+
+        Eigen::Matrix3d mat_eig_tmp;
+      for (int i=0;i<3;i++){
+            for(int j=0;j<3;j++){
+              mat_eig_tmp(i,j)=R_solve_inv.at<double>(i,j);
+            }
+          }
+      Eigen::Quaterniond quat(mat_eig_tmp);
+      quat_vec.push_back(quat);
 
         //cout<<"After optimization"<<"\n";
         // cout<<r<<"\n";
         //cout<<t<<"\n";
+        if (i>=gt_poses.size()-local_ba_frame){
+          // cout<<i<<"\n";
+          Mat rvec_tmp;
+          Mat r_inverse(3,3,CV_64F);
+          for (int i=0;i<3;i++){
+            for(int j=0;j<3;j++){
+              r_inverse.at<double>(i,j)=r_inv(i,j);
+            }
+          }
+          Rodrigues(r_inverse,rvec_tmp);
+          rvec_vec.push_back(Point3d(rvec_tmp.at<double>(0),rvec_tmp.at<double>(1),rvec_tmp.at<double>(2)));
+          tvec_vec.push_back(Point3d(t_inv[0],t_inv[1],t_inv[2]));
+        }
+          t_solve_f_vec.push_back(Point3d(t[0],t[1],t[2]));
 
         trajectory = cloud2->points[i];
         trajectory.x=t[0];
         trajectory.y=t[1];
         trajectory.z=t[2];
+
+        
         // cout<<trajectory.x<<" "<<trajectory.y<<" "<<trajectory.z<<"\n";
         trajectory.r=255;
         trajectory.g=165;
         trajectory.b=0;
         msg4->points.push_back(trajectory);
+        trajectory.r=0;
+        trajectory.g=255;
+        trajectory.b=0;
+        msg2->points.push_back(trajectory);
       }
+        cout<<"rvec_vec size: "<<rvec_vec.size()<<"\n";
         keyframe_pub.publish(msg4);
+
+          rvec.at<double>(0)=rvec_vec[local_ba_frame-1].x;
+          rvec.at<double>(1)=rvec_vec[local_ba_frame-1].y;
+          rvec.at<double>(2)=rvec_vec[local_ba_frame-1].z;
+
+          tvec.at<double>(0)=tvec_vec[local_ba_frame-1].x;
+          tvec.at<double>(1)=tvec_vec[local_ba_frame-1].y;
+          tvec.at<double>(2)=tvec_vec[local_ba_frame-1].z;
+
+
+
+//after loop closing bundle adjustment
+{
+
+if (number_of_3d_points.size()==local_ba_frame){
+  cout<<"local BA start"<<"\n";
+  //cout<<"before local ba tvec: "<<tvec.at<double>(0)<<" "<<tvec.at<double>(1)<<" "<<tvec.at<double>(2)<<"\n";
+
+  int rvec_eig_local_size=3*local_ba_frame;
+    // Eigen::MatrixXd rvec_eig_local(1,3*local_ba_frame);
+    // Eigen::MatrixXd tvec_eig_local(1,3*local_ba_frame);
+    Eigen::VectorXd rvec_eig_local(rvec_eig_local_size);
+    Eigen::VectorXd tvec_eig_local(rvec_eig_local_size);
+    
+
+
+    for (int i=0; i<local_ba_frame;i++){
+      rvec_eig_local[3*i]=rvec_vec[i].x;
+      rvec_eig_local[3*i+1]=rvec_vec[i].y;
+      rvec_eig_local[3*i+2]=rvec_vec[i].z;
+      tvec_eig_local[3*i]=tvec_vec[i].x;
+      tvec_eig_local[3*i+1]=tvec_vec[i].y;
+      tvec_eig_local[3*i+2]=tvec_vec[i].z;
+    }    
+    
+   
+    Eigen::VectorXd BA_2d_points_eig(2);
+    Eigen::MatrixXd BA_3d_points_eig(3,BA_3d_points_map_tmp.size());
+    Eigen::VectorXi number_of_3d_points_eig(number_of_3d_points.size());
+    
+    int half_3d_points=0;
+    for (int i=0;i<local_ba_frame;i++){
+      number_of_3d_points_eig[i]=number_of_3d_points[i];
+      //cout<<number_of_3d_points_eig[i]<<"\n";
+      if (i<local_ba_frame/2){
+        half_3d_points+=number_of_3d_points_eig[i];
+      }
+    }
+    
+
+    for (int i=0;i<BA_3d_points_map_tmp.size();i++){
+      BA_3d_points_eig(0,i)=BA_3d_points_map_tmp[i].second.second.x;
+      BA_3d_points_eig(1,i)=BA_3d_points_map_tmp[i].second.second.y;
+      BA_3d_points_eig(2,i)=BA_3d_points_map_tmp[i].second.second.z;
+      // BA_3d_points_eig(3,i)=1;
+      
+    }
+    
+    
+    
+    ceres::Problem problem2;
+    
+    int index=0;
+    
+    cout<<half_3d_points<<"\n";
+    //-number_of_3d_points[local_ba_frame-1]
+    for (int i = 0; i < BA_2d_points_map.size(); i++) {
+          index++;
+          //cout<<BA_2d_points_map.at(i).first*10000+BA_2d_points_map.at(i).second.first<<"\n";
+          auto it =find(BA_3d_map_points.begin(), BA_3d_map_points.end(), BA_2d_points_map.at(i).first*10000+BA_2d_points_map.at(i).second.first);
+          
+          //auto it = BA_3d_map_points.find(BA_2d_points_map[j].at(i).first*1000+BA_2d_points_map[j].at(i).second.first);
+          BA_2d_points_eig[0]=(double)BA_2d_points_map.at(i).second.second.x;
+          BA_2d_points_eig[1]=(double)BA_2d_points_map.at(i).second.second.y;
+          
+          
+           ceres::CostFunction* cost_function2 = 
+          new ceres::AutoDiffCostFunction<SnavelyReprojectionError_Local_pose_fixed, 2,3>(
+            new SnavelyReprojectionError_Local_pose_fixed(BA_2d_points_eig[0],BA_2d_points_eig[1],focal,pp.x,pp.y,i,number_of_3d_points_eig,rvec_eig_local,tvec_eig_local)
+          );
+       
+    
+    problem2.AddResidualBlock(cost_function2,
+                             NULL ,
+                             BA_3d_points_eig.col(it-BA_3d_map_points.begin()).data());
+          }
+      
+      
+  cout<<"local BA solver start"<<"\n";
+  ceres::Solver::Options options;
+  options.linear_solver_type = ceres::DENSE_SCHUR;
+  options.minimizer_progress_to_stdout = true;
+  options.num_threads = 12;
+  options.max_num_iterations=1000;
+
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, &problem2, &summary);
+  // int num_threads=summary.num_threads_used;
+  // cout<<num_threads<<"\n";
+  // waitKey();
+  //std::cout << summary.FullReport() << "\n";
+  //**********************8
+  
+  //*************************
+
+
+
+  
+  rvec_vec.clear();
+  //vector <Point3d>().swap(rvec_vec);
+  tvec_vec.clear();
+  //vector <Point3d>().swap(tvec_vec);
+   for (int i=0;i<local_ba_frame;i++){
+     double rvec_eig_1=rvec_eig_local[3*i];
+     double rvec_eig_2=rvec_eig_local[3*i+1];
+     double rvec_eig_3=rvec_eig_local[3*i+2];
+     double tvec_eig_1=tvec_eig_local[3*i+0];
+     double tvec_eig_2=tvec_eig_local[3*i+1];
+     double tvec_eig_3=tvec_eig_local[3*i+2];
+     
+     
+      rvec_vec.push_back(Point3d(rvec_eig_1,rvec_eig_2,rvec_eig_3));
+      tvec_vec.push_back(Point3d(tvec_eig_1,tvec_eig_2,tvec_eig_3));
+      
+    }
+    
+    
+    int BA_3d_points_map_size=BA_3d_points_map.size();
+    // vector <pair<int,pair<int,Point3d>>>().swap(BA_3d_points_map);
+    int point_3d_map_size=point_3d_map.size();
+  for (int i=0;i<BA_3d_points_map_size;i++){
+      int map_first=BA_3d_points_map[i].first;
+      int map_second_first=BA_3d_points_map[i].second.first;
+      
+      auto it =find(BA_3d_map_points.begin(), BA_3d_map_points.end(), map_first*10000+map_second_first);
+      
+      int eig_index=it-BA_3d_map_points.begin();
+      BA_3d_points_map.push_back(make_pair(BA_3d_points_map[i].first,make_pair(BA_3d_points_map[i].second.first,Point3d(BA_3d_points_eig(0,eig_index),BA_3d_points_eig(1,eig_index),BA_3d_points_eig(2,eig_index)))));
+      
+      if (i>=BA_3d_points_map_size-number_of_3d_points[number_of_3d_points.size()-1]){
+        point_3d_map.push_back(make_pair(BA_3d_points_map[i].first,make_pair(BA_3d_points_map[i].second.first,Point3d(BA_3d_points_eig(0,eig_index),BA_3d_points_eig(1,eig_index),BA_3d_points_eig(2,eig_index)))));
+      }
+    }
+    
+
+BA_3d_points_map.erase(BA_3d_points_map.begin(),BA_3d_points_map.begin()+BA_3d_points_map_size);
+point_3d_map.erase(point_3d_map.begin(),point_3d_map.begin()+point_3d_map_size);
+
+
+// for (int i=0;i<point_3d_map.size();i++){
+//   cout<<point_3d_map[i].second.second<<"\n";
+//   waitKey();
+// }
+  //cout<<"after local ba point_3d_map size: "<<point_3d_map.size()<<"\n";
+  cout<<"BA_3d_points_map size: "<<BA_3d_points_map.size()<<"\n";
+     
+     
+
+  rvec.at<double>(0)=rvec_vec[local_ba_frame-1].x;
+  rvec.at<double>(1)=rvec_vec[local_ba_frame-1].y;
+  rvec.at<double>(2)=rvec_vec[local_ba_frame-1].z;
+
+  tvec.at<double>(0)=tvec_vec[local_ba_frame-1].x;
+  tvec.at<double>(1)=tvec_vec[local_ba_frame-1].y;
+  tvec.at<double>(2)=tvec_vec[local_ba_frame-1].z;
+
+  
+
+Rodrigues(rvec,R_solve);
+   
+    R_solve_inv = R_solve.t();
+    // cout<<R_solve_inv<<"\n";
+    // waitKey(1000);
+    t_solve_f = -R_solve_inv*tvec;
+
+
+  for(int i=0;i<local_ba_frame;i++){
+    trajectory = cloud2->points[i];
+        
+        Mat rvec_tmp(3,1,CV_64F);
+        Mat tvec_tmp(3,1,CV_64F);
+        
+        rvec_tmp.at<double>(0)=rvec_vec[i].x;
+        rvec_tmp.at<double>(1)=rvec_vec[i].y;
+        rvec_tmp.at<double>(2)=rvec_vec[i].z;
+
+        tvec_tmp.at<double>(0)=tvec_vec[i].x;
+        tvec_tmp.at<double>(1)=tvec_vec[i].y;
+        tvec_tmp.at<double>(2)=tvec_vec[i].z;
+
+        Mat R_solve_tmp(3,3,CV_64F);
+        Rodrigues(rvec_tmp,R_solve_tmp);
+        
+        Mat R_solve_inv_tmp=R_solve_tmp.t();
+        Mat t_solve_f_tmp=-R_solve_inv_tmp*tvec_tmp;
+        
+
+        trajectory.x=t_solve_f_tmp.at<double>(0);
+        trajectory.y=t_solve_f_tmp.at<double>(1);
+        trajectory.z=t_solve_f_tmp.at<double>(2);
+        trajectory.r=30;
+        trajectory.g=144;
+        trajectory.b=255;
+        msg4->points.push_back(trajectory);
+        msg2->points.push_back(trajectory);
+
+        
+  }
+    keyframe_pub.publish(msg4);
+    
+
+}
+
+}
 
 
 
         Isloopdetected=0;
+        once_loop_detected=1;
 
-        waitKey();
+        
       }
       #endif
 
@@ -1820,8 +2218,8 @@ int repro_sum=0;
 
 
 }
-//************************************draw after local ba**********************************
-//********************************************************************************************************localBA end******************************************************************************************************************//
+
+//************************************loop closing end*******************************************************************************//
      diagonal = R_solve.at<double>(0,0)+R_solve.at<double>(1,1)+R_solve.at<double>(2,2);
 
     rot_ang = acos( (diagonal-1.0)/2);
@@ -1873,22 +2271,22 @@ int repro_sum=0;
     
     
 
-    cloud2->points.resize(MAX_FRAME);
-    trajectory = cloud2->points[numFrame];
-    trajectory.x=t_solve_f.at<double>(0);
-    trajectory.y=t_solve_f.at<double>(1);
-    trajectory.z=t_solve_f.at<double>(2);
-    trajectory.r=173;
-    trajectory.g=255.0f;
-    trajectory.b=47;
-    msg2->points.push_back(trajectory);
+    // cloud2->points.resize(MAX_FRAME);
+    // trajectory = cloud2->points[numFrame];
+    // trajectory.x=t_solve_f.at<double>(0);
+    // trajectory.y=t_solve_f.at<double>(1);
+    // trajectory.z=t_solve_f.at<double>(2);
+    // trajectory.r=173;
+    // trajectory.g=255.0f;
+    // trajectory.b=47;
+    // msg2->points.push_back(trajectory);
     trajectory.x=gt_x;
     trajectory.y=gt_y;
     trajectory.z=gt_z;
     trajectory.r=0;
     trajectory.g=0;
     trajectory.b=255.0f;
-    msg2->points.push_back(trajectory);
+    gt_msg->points.push_back(trajectory);
 
 
     int c = int(gt_x) + 600;
@@ -1927,7 +2325,7 @@ int repro_sum=0;
     world_points_pub.publish(msg);
     traj_pub.publish(msg2);
     tracking_pub.publish(msg3);
-        
+    gt_traj_pub.publish(gt_msg);
          
 
 

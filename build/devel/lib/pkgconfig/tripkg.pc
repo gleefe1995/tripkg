@@ -1,0 +1,8 @@
+prefix=/home/gleefe/catkin_ws/src/tripkg/build/devel
+
+Name: tripkg
+Description: Description of tripkg
+Version: 0.0.0
+Cflags: -I/home/gleefe/catkin_ws/src/tripkg/build/devel/include -I/home/gleefe/catkin_ws/src/tripkg/include
+Libs: -L${prefix}/lib -ltripkg
+Requires: pcl roscpp std_msgs

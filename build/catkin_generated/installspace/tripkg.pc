@@ -1,0 +1,8 @@
+prefix=/usr/local
+
+Name: tripkg
+Description: Description of tripkg
+Version: 0.0.0
+Cflags: -I${prefix}/include
+Libs: -L${prefix}/lib -ltripkg
+Requires: pcl roscpp std_msgs
