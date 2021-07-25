@@ -9,9 +9,8 @@
 # modified environment variables
 export CMAKE_PREFIX_PATH="/home/gleefe/catkin_ws/src/tripkg/build/devel:$CMAKE_PREFIX_PATH"
 export LD_LIBRARY_PATH="/home/gleefe/catkin_ws/src/tripkg/build/devel/lib:$LD_LIBRARY_PATH"
-export PATH='/home/gleefe/carto_ws/install_isolated/bin:/opt/ros/melodic/bin:/home/gleefe/.local/bin:/home/gleefe/gems/bin:/home/gleefe/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'
+export PATH='/home/gleefe/carto_ws/install_isolated/bin:/opt/ros/melodic/bin:/home/gleefe/.local/bin:/usr/local/cuda/bin:/home/gleefe/gems/bin:/home/gleefe/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'
 export PKG_CONFIG_PATH="/home/gleefe/catkin_ws/src/tripkg/build/devel/lib/pkgconfig:$PKG_CONFIG_PATH"
-export PWD='/home/gleefe/catkin_ws/src/tripkg/build'
 export PYTHONPATH="/home/gleefe/catkin_ws/src/tripkg/build/devel/lib/python2.7/dist-packages:$PYTHONPATH"
 export ROSLISP_PACKAGE_DIRECTORIES="/home/gleefe/catkin_ws/src/tripkg/build/devel/share/common-lisp:$ROSLISP_PACKAGE_DIRECTORIES"
 export ROS_PACKAGE_PATH="/home/gleefe/catkin_ws/src/tripkg:$ROS_PACKAGE_PATH"

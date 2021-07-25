@@ -1853,11 +1853,12 @@ int repro_sum=0;
         // set edges between poses
         {
           g2o::SE3Quat relpose;
-        
-          for (int i=1;i<gt_poses.size();i++){
+          for (int j=1;j<5;j++){
+          for (int i=j;i<gt_poses.size();i++){
             // relpose: pose[i] w.r.t pose[i-1]
-            relpose = gt_poses[i-1].inverse() * gt_poses[i];
-            addEdgePosePose(optimizer, i-1, i, relpose);
+            relpose = gt_poses[i-j].inverse() * gt_poses[i];
+            addEdgePosePose(optimizer, i-j, i, relpose);
+          }
           }
         
           Eigen::Vector3d trans;

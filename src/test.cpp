@@ -39,10 +39,7 @@ int main(int argc, char** argv)
      char filename1[200];
   char filename2[200];
 
-  Ptr<LineSegmentDetector> lsd=createLineSegmentDetector();
   
-
-
  sprintf(filename1, path_to_image, 0);
   sprintf(filename2, path_to_image, 1);
    Mat image1_c = imread(filename1);
@@ -57,9 +54,7 @@ Mat dst;
   vector<Vec4f> lines_std;
 namedWindow("dst",WINDOW_AUTOSIZE);
   
-  lsd->detect(image1,lines_std);
-  
-  lsd->drawSegments(image1, lines_std);
+ 
 
 
   imshow("dst",image1);
