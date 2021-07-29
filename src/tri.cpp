@@ -1894,7 +1894,7 @@ int repro_sum=0;
         // set edges between poses
         {
           g2o::SE3Quat relpose;
-          for (int j=1;j<5;j++){
+          for (int j=1;j<10;j++){
           for (int i=j;i<gt_poses.size();i++){
             // relpose: pose[i] w.r.t pose[i-1]
             relpose = gt_poses[i-j].inverse() * gt_poses[i];
@@ -2033,8 +2033,9 @@ int repro_sum=0;
           int idx0 = e_se3->vertex(0)->id();
           int idx1 = e_se3->vertex(1)->id();
           g2o::EdgeSim3* e_sim3 = new g2o::EdgeSim3();
-          if ( (idx0==0)&&(idx1==gt_poses.size()-1)){
-            ToEdgeSim3(*e_se3,e_sim3,1.0);
+          if ( (idx0==keyframe_prev)&&(idx1==gt_poses.size()-1)){
+            ToEdgeSim3(*e_se3,e_sim3,5.0);
+            cout<<"scale 1.5"<<"\n";
           }
           else{
           ToEdgeSim3(*e_se3, e_sim3,1.0);
