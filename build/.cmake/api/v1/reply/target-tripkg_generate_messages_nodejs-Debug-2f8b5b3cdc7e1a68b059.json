@@ -23,7 +23,7 @@
 			{
 				"command" : 2,
 				"file" : 2,
-				"line" : 101,
+				"line" : 105,
 				"parent" : 0
 			},
 			{
@@ -39,19 +39,19 @@
 			{
 				"command" : 0,
 				"file" : 0,
-				"line" : 79,
+				"line" : 145,
 				"parent" : 3
 			},
 			{
 				"command" : 3,
 				"file" : 0,
-				"line" : 86,
+				"line" : 152,
 				"parent" : 3
 			},
 			{
 				"command" : 3,
 				"file" : 0,
-				"line" : 215,
+				"line" : 237,
 				"parent" : 3
 			}
 		]
@@ -64,11 +64,11 @@
 		},
 		{
 			"backtrace" : 6,
-			"id" : "std_msgs_generate_messages_eus::@6890427a1f51a3e7e1df"
+			"id" : "std_msgs_generate_messages_nodejs::@6890427a1f51a3e7e1df"
 		}
 	],
-	"id" : "tripkg_generate_messages_eus::@6890427a1f51a3e7e1df",
-	"name" : "tripkg_generate_messages_eus",
+	"id" : "tripkg_generate_messages_nodejs::@6890427a1f51a3e7e1df",
+	"name" : "tripkg_generate_messages_nodejs",
 	"paths" : 
 	{
 		"build" : ".",
@@ -88,8 +88,7 @@
 			"sourceIndexes" : 
 			[
 				1,
-				2,
-				3
+				2
 			]
 		}
 	],
@@ -98,25 +97,19 @@
 		{
 			"backtrace" : 4,
 			"isGenerated" : true,
-			"path" : "build/CMakeFiles/tripkg_generate_messages_eus",
+			"path" : "build/CMakeFiles/tripkg_generate_messages_nodejs",
 			"sourceGroupIndex" : 0
 		},
 		{
 			"backtrace" : 0,
 			"isGenerated" : true,
-			"path" : "build/CMakeFiles/tripkg_generate_messages_eus.rule",
+			"path" : "build/CMakeFiles/tripkg_generate_messages_nodejs.rule",
 			"sourceGroupIndex" : 1
 		},
 		{
 			"backtrace" : 0,
 			"isGenerated" : true,
-			"path" : "build/devel/share/roseus/ros/tripkg/manifest.l.rule",
-			"sourceGroupIndex" : 1
-		},
-		{
-			"backtrace" : 0,
-			"isGenerated" : true,
-			"path" : "build/devel/share/roseus/ros/tripkg/msg/tri.l.rule",
+			"path" : "build/devel/share/gennodejs/ros/tripkg/msg/tri.js.rule",
 			"sourceGroupIndex" : 1
 		}
 	],

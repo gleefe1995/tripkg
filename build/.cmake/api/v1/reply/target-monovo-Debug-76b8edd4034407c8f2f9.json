@@ -2,7 +2,7 @@
 	"artifacts" : 
 	[
 		{
-			"path" : "devel/lib/tripkg/orbtest"
+			"path" : "devel/lib/tripkg/monovo"
 		}
 	],
 	"backtrace" : 1,
@@ -46,19 +46,19 @@
 			{
 				"command" : 0,
 				"file" : 0,
+				"line" : 254,
+				"parent" : 0
+			},
+			{
+				"command" : 1,
+				"file" : 0,
+				"line" : 255,
+				"parent" : 0
+			},
+			{
+				"command" : 1,
+				"file" : 0,
 				"line" : 256,
-				"parent" : 0
-			},
-			{
-				"command" : 1,
-				"file" : 0,
-				"line" : 257,
-				"parent" : 0
-			},
-			{
-				"command" : 1,
-				"file" : 0,
-				"line" : 258,
 				"parent" : 0
 			},
 			{
@@ -170,7 +170,7 @@
 			{
 				"command" : 11,
 				"file" : 0,
-				"line" : 101,
+				"line" : 105,
 				"parent" : 0
 			},
 			{
@@ -210,7 +210,7 @@
 			{
 				"command" : 8,
 				"file" : 0,
-				"line" : 151,
+				"line" : 155,
 				"parent" : 0
 			}
 		]
@@ -390,7 +390,7 @@
 			]
 		}
 	],
-	"id" : "orbtest::@6890427a1f51a3e7e1df",
+	"id" : "monovo::@6890427a1f51a3e7e1df",
 	"link" : 
 	{
 		"commandFragments" : 
@@ -1647,6 +1647,11 @@
 				"role" : "libraries"
 			},
 			{
+				"backtrace" : 2,
+				"fragment" : "-lg2o_types_slam3d",
+				"role" : "libraries"
+			},
+			{
 				"backtrace" : 3,
 				"fragment" : "../Thirdparty/DBoW2/lib/libDBoW2.so",
 				"role" : "libraries"
@@ -2561,6 +2566,31 @@
 				"role" : "libraries"
 			},
 			{
+				"backtrace" : 2,
+				"fragment" : "-lg2o_types_slam3d",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-lg2o_types_sim3",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-lg2o_solver_csparse",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-lg2o_stuff",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-lg2o_csparse_extension",
+				"role" : "libraries"
+			},
+			{
 				"backtrace" : 3,
 				"fragment" : "../Thirdparty/DBoW2/lib/libDBoW2.so",
 				"role" : "libraries"
@@ -2709,8 +2739,8 @@
 		],
 		"language" : "CXX"
 	},
-	"name" : "orbtest",
-	"nameOnDisk" : "orbtest",
+	"name" : "monovo",
+	"nameOnDisk" : "monovo",
 	"paths" : 
 	{
 		"build" : ".",
@@ -2731,7 +2761,7 @@
 		{
 			"backtrace" : 1,
 			"compileGroupIndex" : 0,
-			"path" : "src/test.cpp",
+			"path" : "src/tri.cpp",
 			"sourceGroupIndex" : 0
 		}
 	],

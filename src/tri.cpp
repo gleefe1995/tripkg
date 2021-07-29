@@ -16,14 +16,14 @@
 #define MAX_IMAGE_NUMBER 1101
 #define parallax_def 0
 #define max_distance 150
-// const double focal = 718.8560; //00-02
-//     const cv::Point2d pp(607.1928, 185.2157);
+const double focal = 718.8560; //00-02
+    const cv::Point2d pp(607.1928, 185.2157);
     // const double focal = 721.5377; //03
     // const cv::Point2d pp(609.5593, 172.854);
-    const double focal = 707.0912; //04-12
-    const cv::Point2d pp(601.8873, 183.1104);
-const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/06/image_0/%06d.png";
-string path_to_pose = "/home/gleefe/Downloads/dataset/poses/06.txt";
+    // const double focal = 707.0912; //04-12
+    // const cv::Point2d pp(601.8873, 183.1104);
+const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/00/image_0/%06d.png";
+string path_to_pose = "/home/gleefe/Downloads/dataset/poses/00.txt";
 
 
 using namespace std;
@@ -38,10 +38,19 @@ bool compare_point (pair<int,pair<int,Point3d>> a,
                       if(a.first==b.first){
                         return a.second.first<b.second.first;
                       }
-                      else{
+                      
                         return a.first<b.first;
-                      }
+                      
                     }
+
+bool compare_point2 (pair<int,Point3d> a,
+                    pair<int,Point3d> b){
+                      
+                        return a.first<b.first;
+                      
+                    }
+
+
 
 int main(int argc, char **argv){
     g2o_type_VertexSE3();
@@ -70,7 +79,7 @@ int main(int argc, char **argv){
     // optimizer->setVerbose(true);
     
     //g2o sim3
-    typedef g2o::BlockSolver<g2o::BlockSolverTraits<7, 7>> BlockSolverType;
+    typedef g2o::BlockSolver<g2o::BlockSolverTraits<-1, -1>> BlockSolverType;
     typedef g2o::LinearSolverEigen<BlockSolverType::PoseMatrixType>
       LinearSolverType;
     auto solver = new g2o::OptimizationAlgorithmLevenberg(
@@ -375,6 +384,15 @@ t_solve_f_vec.push_back(Point3d(0,0,0));
       Eigen::Quaterniond quat(mat_eig);
       quat_vec.push_back(quat);
 
+      // for (int i=0;i<prev_points_map.size();i++){
+      // // BA_3d_points_map_loop.push_back(point_3d_map[i]);
+      // //BA_2d_points_map_loop.push_back(prev_points_map[i]);
+      // // number_of_3d_points_loop.push_back(prev_points_map.size());
+      // }
+
+
+
+
 // -------------------------------------------------------------------------------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -632,6 +650,19 @@ if (prevFeatures.size() < 200)	{
     // waitKey();
     if (currFeatures.size()>0.1*200){
       keyframe_number++;
+
+      for (int j=0;j<2;j++){
+      for (int i=0;i<point_3d_map.size();i++){
+      BA_3d_points_map_loop.push_back(point_3d_map[i]);
+      BA_2d_points_map_loop.push_back(curr_points_map[i]);
+      
+      }
+      number_of_3d_points_loop.push_back(point_3d_map.size());
+      }
+      
+      
+
+
       trajectory.x=t_f.at<double>(0);
     trajectory.y=t_f.at<double>(1);
     trajectory.z=t_f.at<double>(2);
@@ -1038,6 +1069,7 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
   options.linear_solver_type = ceres::DENSE_SCHUR;
   options.minimizer_progress_to_stdout = false;
   options.num_threads = 12;
+  options.max_num_iterations=10;
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
   //std::cout << summary.FullReport() << "\n";
@@ -1485,6 +1517,8 @@ if ((numFrame-numFrame_prev>=min_keyframe)||(rot_ang_diff>1.5)){
         BA_2d_points_map_loop.push_back(prev_points_map[i]);
       }
 
+
+
       number_of_3d_points.push_back(point_3d_map.size());
       number_of_3d_points_loop.push_back(point_3d_map.size());
       
@@ -1539,6 +1573,8 @@ numFrame_prev=numFrame-1;
       //***************************************************************************************************local BA***************************************************************************************************************//
 #if (local_ba>0)
 if (number_of_3d_points.size()==local_ba_frame){
+
+
   cout<<"local BA start"<<"\n";
   //cout<<"before local ba tvec: "<<tvec.at<double>(0)<<" "<<tvec.at<double>(1)<<" "<<tvec.at<double>(2)<<"\n";
 
@@ -1812,23 +1848,28 @@ int repro_sum=0;
         cout<<"keyframe_prev id: "<<keyframe_prev<<"\n";
         cout<<"keyframe_curr id: "<<keyframe_curr<<"\n";
         cout<<"t_solve_f_vec size: "<<t_solve_f_vec.size()<<"\n";
-        //first, set fixed vertex
+        
           g2o::SparseOptimizer* optimizer = new g2o::SparseOptimizer;
           optimizer->setAlgorithm(algorithm);
           optimizer->setVerbose(true);
           g2o::SparseOptimizer optimizer_sim3;
+           g2o::ParameterSE3Offset* cameraOffset = new g2o::ParameterSE3Offset;
+          cameraOffset->setId(0);
+          optimizer_sim3.addParameter(cameraOffset);
+
           optimizer_sim3.setAlgorithm(solver);
           optimizer_sim3.setVerbose(true);
+        //first, set fixed vertex
         {
           
           Eigen::Vector3d trans;
       
-          trans[0]=t_solve_f_vec[keyframe_prev].x;
-          trans[1]=t_solve_f_vec[keyframe_prev].y;
-          trans[2]=t_solve_f_vec[keyframe_prev].z;
+          trans[0]=t_solve_f_vec[0].x;
+          trans[1]=t_solve_f_vec[0].y;
+          trans[2]=t_solve_f_vec[0].z;
       
 
-          g2o::SE3Quat pose0(quat_vec[keyframe_prev], trans);
+          g2o::SE3Quat pose0(quat_vec[0], trans);
           addPoseVertex(optimizer, pose0, true);
           gt_poses.push_back(pose0);
         }
@@ -1837,7 +1878,7 @@ int repro_sum=0;
           // Eigen::Matrix3d mat_eig;
           Eigen::Vector3d trans;
 
-          for (int k=keyframe_prev+1;k<=keyframe_curr;k++){
+          for (int k=1;k<=keyframe_curr;k++){
             trans[0]=t_solve_f_vec[k].x;
             trans[1]=t_solve_f_vec[k].y;
             trans[2]=t_solve_f_vec[k].z;
@@ -1864,14 +1905,14 @@ int repro_sum=0;
           Eigen::Vector3d trans;
           Eigen::Quaterniond quat0;
 
-        // the last  vertex is same with the first one
+        // the last  vertex is same with the keyframe_prev
           
 
 
           trans = Eigen::Vector3d(0,0,0);
           quat0.setIdentity();
           g2o::SE3Quat pose0(quat0, trans);
-          addEdgePosePose(optimizer, 0, int(gt_poses.size()-1), pose0);
+          addEdgePosePose(optimizer, keyframe_prev, int(gt_poses.size()-1), pose0);
         }
 
 
@@ -1884,8 +1925,12 @@ int repro_sum=0;
           v_sim3->setMarginalized(false);
           //cout<<"id: "<<i<<"\n";
           //cout<<"vertex t:" << v_se3->estimate().translation()[0]<<" "<<v_se3->estimate().translation()[1]<<" "<<v_se3->estimate().translation()[2]<<"\n";
-          ToVertexSim3(*v_se3, v_sim3);
-
+          if (i==gt_poses.size()-1){
+            ToVertexSim3(*v_se3, v_sim3,1.0);
+          }
+          else{
+            ToVertexSim3(*v_se3, v_sim3,1.0);
+          }
           // cout<<v_sim3->estimate().translation()<<"\n";
 
           optimizer_sim3.addVertex(v_sim3);
@@ -1893,7 +1938,94 @@ int repro_sum=0;
             v_sim3->setFixed(true);
           }
         }
-        
+
+        /*
+          // vector<pair<int,pair<int,Point3d>>> BA_3d_points_tmp;
+          vector<pair<int,Point3d>> BA_3d_points_tmp;
+          
+          vector<pair<int,pair<int,Point2f>>> BA_2d_points_tmp;
+          vector<int> number_of_3d_points_loop_tmp;
+          int index_of_points=0;
+          for (int i=0;i<keyframe_prev;i++){
+            index_of_points+=number_of_3d_points_loop[i];
+          }
+
+          int whole_size=0;
+            for (int i=keyframe_prev;i<=keyframe_curr;i++){
+              number_of_3d_points_loop_tmp.push_back(number_of_3d_points_loop[i]);
+              whole_size+=number_of_3d_points_loop[i];
+            }
+            
+          BA_3d_points_tmp.reserve(BA_3d_points_map_loop.size()-index_of_points);  
+            vector<int> BA_3d_map_points_tmp;
+            for (int i=index_of_points;i<BA_3d_points_map_loop.size();i++){
+              
+              BA_3d_points_tmp.push_back(make_pair(10000*BA_3d_points_map_loop[i].first+BA_3d_points_map_loop[i].second.first,BA_3d_points_map_loop[i].second.second));
+              BA_2d_points_tmp.push_back(BA_2d_points_map_loop[i]);
+              BA_3d_map_points_tmp.push_back(10000*BA_3d_points_map_loop[i].first+BA_3d_points_map_loop[i].second.first);
+              
+            }
+
+          cout<<index_of_points<<"\n";
+          cout<<whole_size<<"\n";
+          cout<<number_of_3d_points_loop_tmp.size()<<"\n";
+          cout<<BA_2d_points_tmp.size()<<"\n";
+          cout<<BA_3d_points_tmp.size()<<"\n";
+          cout<<BA_2d_points_map_loop.size()<<"\n";
+          cout<<BA_3d_points_map_loop.size()<<"\n";
+          cout<<"sorting BA_3d_pionts"<<"\n";
+
+          sort(BA_3d_points_tmp.begin(),BA_3d_points_tmp.end(),compare_point2);
+          sort(BA_3d_map_points_tmp.begin(),BA_3d_map_points_tmp.end());
+
+          
+          int BA_3d_points_tmp_size=BA_3d_points_tmp.size();
+          vector<pair<int,Point3d>> BA_3d_points_tmp_tmp;
+          for (int i=0;i<BA_3d_points_tmp.size();i++){
+            if ((i>0)&&(BA_3d_points_tmp[i-1].first!=BA_3d_points_tmp[i].first))
+            {
+              BA_3d_points_tmp_tmp.push_back(BA_3d_points_tmp[i]);
+            }
+            else if(i==0){
+              BA_3d_points_tmp_tmp.push_back(BA_3d_points_tmp[i]);
+            }
+          }
+          
+
+
+
+          // auto it = unique(BA_3d_points_tmp.begin(),BA_3d_points_tmp.end());
+          // BA_3d_points_tmp.erase(it,BA_3d_points_tmp.end());
+
+          
+          vector<int>::iterator it2=unique(BA_3d_map_points_tmp.begin(),BA_3d_map_points_tmp.end());
+          BA_3d_map_points_tmp.erase(it2,BA_3d_map_points_tmp.end());
+          
+          // waitKey();
+          
+          
+          // cout<<BA_3d_points_tmp_tmp.size()<<"\n";
+          
+          //Add landmark vertices
+          cout<<"Add landmark vertices"<<"\n";
+          {
+            g2o::VertexPointXYZ* landmark = new VertexPointXYZ;
+            
+            for (int i=0;i<BA_3d_points_tmp_tmp.size();i++){
+            landmark->setId(i+gt_poses.size());
+            Eigen::Vector3d trans_vtx;
+            // trans_vtx->x
+            trans_vtx[0]=BA_3d_points_tmp_tmp[i].second.x;
+            trans_vtx[1]=BA_3d_points_tmp_tmp[i].second.y;
+            trans_vtx[2]=BA_3d_points_tmp_tmp[i].second.z;
+            landmark->setEstimate(trans_vtx);
+            //optimizer_sim3.addVertex(landmark);          
+            }
+          }
+          cout<<"vertex size: "<<optimizer_sim3.vertices().size()<<"\n";
+          cout<<"BA_3d_map_points_tmp size: "<<BA_3d_map_points_tmp.size()<<"\n";
+          cout<<"BA_3d_points_tmp size: "<<BA_3d_points_tmp_tmp.size()<<"\n";
+          */
           // Convert all edges
         int edge_index = 0;
         for (auto& tmp : optimizer->edges()) {
@@ -1901,34 +2033,95 @@ int repro_sum=0;
           int idx0 = e_se3->vertex(0)->id();
           int idx1 = e_se3->vertex(1)->id();
           g2o::EdgeSim3* e_sim3 = new g2o::EdgeSim3();
-          
-          ToEdgeSim3(*e_se3, e_sim3);
+          if ( (idx0==0)&&(idx1==gt_poses.size()-1)){
+            ToEdgeSim3(*e_se3,e_sim3,1.0);
+          }
+          else{
+          ToEdgeSim3(*e_se3, e_sim3,1.0);
+          }
           e_sim3->setId(edge_index++);
           e_sim3->setVertex(0, optimizer_sim3.vertices()[idx0]);
           e_sim3->setVertex(1, optimizer_sim3.vertices()[idx1]);
           e_sim3->information() = Eigen::Matrix<double, 7, 7>::Identity();
 
-
-          g2o::Sim3 sim3=e_sim3->measurement();
-          Eigen::Matrix3d r = sim3.rotation().toRotationMatrix();
-          Eigen::Vector3d t = sim3.translation();
-          // cout<<"idx0: "<<idx0<<"idx1: "<<idx1<<"\n";
-          // cout<<edge_index<<"\n";
-          // cout<<t<<"\n";
-
-
           optimizer_sim3.addEdge(e_sim3);
         }
+        // Add landmark edges
+        /*
+        { 
+          cout<<"Add landmark edges"<<"\n";
+          int number_of_points=0;
+          int number_of_points_prev=0;
+          for (int i=0;i<gt_poses.size();i++){
+            //cout<<"i: "<<i<<"\n";
+          
+      //       edge->setVertex(0, optimizer->vertices().find(poseid)->second);
+      // edge->setVertex(1, optimizer->vertices().find(ptid)->second);
+          number_of_points+=number_of_3d_points_loop_tmp[i];
+          
+          g2o::VertexSim3Expmap* vtx =
+          static_cast<g2o::VertexSim3Expmap*>(optimizer_sim3.vertex(i));
+          g2o::Sim3 sim3 = vtx->estimate().inverse();
+          
+          //cout<<"from j: "<<number_of_points_prev<<", to: "<<number_of_points<<"\n";
+          for (int j=number_of_points_prev;j<number_of_points;j++){
+            g2o::EdgeSE3PointXYZ* landmarkObservation =  new EdgeSE3PointXYZ;
+          //landmarkObservation->vertices()[0] = optimizer_sim3.vertex(i);
+          landmarkObservation->setVertex(0,optimizer_sim3.vertices().find(i)->second);
+            auto it =find(BA_3d_map_points_tmp.begin(), BA_3d_map_points_tmp.end(), BA_2d_points_tmp.at(j).first*10000+BA_2d_points_tmp.at(j).second.first);
+
+          //cout<<"it-BA_3d_map_points_tmp: "<<it-BA_3d_map_points_tmp.begin()<<"\n";
+
+          //landmarkObservation->vertices()[1] = optimizer_sim3.vertex(gt_poses.size()+(it-BA_3d_map_points_tmp.begin()));
+          landmarkObservation->setVertex(1,optimizer_sim3.vertices().find(gt_poses.size()+(it-BA_3d_map_points_tmp.begin()))->second);
+          
+          Eigen::Vector3d trans_landmark;
+          if (i!=gt_poses.size()-1){
+          trans_landmark[0]=-(sim3.translation()[0]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.x);
+          trans_landmark[1]=-(sim3.translation()[1]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.y);
+          trans_landmark[2]=-(sim3.translation()[2]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.z);
+          }
+          else{
+            g2o::VertexSim3Expmap* vtx2 =
+          static_cast<g2o::VertexSim3Expmap*>(optimizer_sim3.vertex(0));
+          g2o::Sim3 sim32 = vtx2->estimate().inverse();
+            trans_landmark[0]=-(sim32.translation()[0]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.x);
+          trans_landmark[1]=-(sim32.translation()[1]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.y);
+          trans_landmark[2]=-(sim32.translation()[2]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.z);
+          }
+          //cout<<"trans_landmark: "<<trans_landmark<<"\n";
+          landmarkObservation->setMeasurement(trans_landmark);
+          // landmarkObservation->setInformation(simEdge.information);
+          // landmarkObservation->information() = Eigen::Matrix<double, 3, 3>::Identity();
+          Eigen::MatrixXd info_matrix = Eigen::MatrixXd::Identity(3,3);
+          for(int i=0; i<3; i++){
+              info_matrix(i, i) = 1;
+          }
+          landmarkObservation->setInformation(info_matrix);
+          
+          //cout<<"Add landmark edge"<<"\n";
+          landmarkObservation->setParameterId(0, 0);
+          //optimizer_sim3.addEdge(landmarkObservation);
+          
+          }
+          number_of_points_prev=number_of_points;
+          }
         
-        cout << "optimizing ..." << endl;
+        }
+        cout<<"edge size: "<<optimizer_sim3.edges().size()<<"\n";
+        
+        cout<<"vertex size: "<<optimizer_sim3.vertices().size()<<"\n";
+        */
+        cout<<"initializing ..."<<"\n";
         optimizer_sim3.initializeOptimization();
+        cout << "optimizing ..." << endl;
         optimizer_sim3.optimize(100);
 
-        t_solve_f_vec.erase(t_solve_f_vec.begin()+keyframe_prev,t_solve_f_vec.begin()+keyframe_curr);
-        quat_vec.erase(quat_vec.begin()+keyframe_prev,quat_vec.begin()+keyframe_curr);
+        t_solve_f_vec.erase(t_solve_f_vec.begin(),t_solve_f_vec.begin()+keyframe_curr);
+        quat_vec.erase(quat_vec.begin(),quat_vec.begin()+keyframe_curr);
         rvec_vec.clear();
         tvec_vec.clear();
-        msg2->points.erase(msg2->points.begin()+keyframe_prev,msg2->points.begin()+keyframe_curr+1);
+        msg2->points.erase(msg2->points.begin(),msg2->points.begin()+keyframe_curr+1);
         // msg2->points.clear();
         
         tracking_pub.publish(msg2);
@@ -1990,7 +2183,9 @@ int repro_sum=0;
         msg2->points.push_back(trajectory);
       }
         cout<<"rvec_vec size: "<<rvec_vec.size()<<"\n";
+        traj_pub.publish(msg2);
         keyframe_pub.publish(msg4);
+        cout<<"keyframe pub publish"<<"\n";
 
           rvec.at<double>(0)=rvec_vec[local_ba_frame-1].x;
           rvec.at<double>(1)=rvec_vec[local_ba_frame-1].y;
@@ -2001,12 +2196,16 @@ int repro_sum=0;
           tvec.at<double>(2)=tvec_vec[local_ba_frame-1].z;
 
 
+//after loop closing ba
+        cout<<"loop closing end"<<"\n";
+        
 
-//after loop closing bundle adjustment
+        //after loop closing bundle adjustment
+
 {
 
-if (number_of_3d_points.size()==local_ba_frame){
-  cout<<"local BA start"<<"\n";
+
+  cout<<"full BA start"<<"\n";
   //cout<<"before local ba tvec: "<<tvec.at<double>(0)<<" "<<tvec.at<double>(1)<<" "<<tvec.at<double>(2)<<"\n";
 
   int rvec_eig_local_size=3*local_ba_frame;
@@ -2201,8 +2400,6 @@ Rodrigues(rvec,R_solve);
   }
     keyframe_pub.publish(msg4);
     
-
-}
 
 }
 
