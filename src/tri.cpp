@@ -16,14 +16,14 @@
 #define MAX_IMAGE_NUMBER 1101
 #define parallax_def 0
 #define max_distance 150
-const double focal = 718.8560; //00-02
-    const cv::Point2d pp(607.1928, 185.2157);
+// const double focal = 718.8560; //00-02
+//     const cv::Point2d pp(607.1928, 185.2157);
     // const double focal = 721.5377; //03
     // const cv::Point2d pp(609.5593, 172.854);
-    // const double focal = 707.0912; //04-12
-    // const cv::Point2d pp(601.8873, 183.1104);
-const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/00/image_0/%06d.png";
-string path_to_pose = "/home/gleefe/Downloads/dataset/poses/00.txt";
+    const double focal = 707.0912; //04-12
+    const cv::Point2d pp(601.8873, 183.1104);
+const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/05/image_0/%06d.png";
+string path_to_pose = "/home/gleefe/Downloads/dataset/poses/05.txt";
 
 
 using namespace std;
@@ -373,7 +373,7 @@ t_solve_f_vec.push_back(Point3d(0,0,0));
       
     
     
-      //numFrame_vec.push_back(numFrame);
+      numFrame_vec.push_back(numFrame);
       Eigen::Matrix3d mat_eig;
       Mat mat_identity=Mat::eye(Size(3,3),CV_64F);
       for (int i=0;i<3;i++){
@@ -687,7 +687,7 @@ if (prevFeatures.size() < 200)	{
 
 t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<double>(2)));
       
-      //numFrame_vec.push_back(numFrame);
+      numFrame_vec.push_back(numFrame);
       Eigen::Matrix3d mat_eig;
       // Mat mat_identity=Mat::eye(Size(3,3),CV_64F);
       for (int i=0;i<3;i++){
@@ -1813,7 +1813,7 @@ int repro_sum=0;
     trajectory.b=0;
     
     msg2->points.push_back(trajectory);
-      //numFrame_vec.push_back(numFrame);
+      numFrame_vec.push_back(numFrame);
       Eigen::Matrix3d mat_eig;
       for (int i=0;i<3;i++){
             for(int j=0;j<3;j++){
@@ -1894,7 +1894,7 @@ int repro_sum=0;
         // set edges between poses
         {
           g2o::SE3Quat relpose;
-          for (int j=1;j<10;j++){
+          for (int j=1;j<5;j++){
           for (int i=j;i<gt_poses.size();i++){
             // relpose: pose[i] w.r.t pose[i-1]
             relpose = gt_poses[i-j].inverse() * gt_poses[i];
@@ -1939,26 +1939,26 @@ int repro_sum=0;
           }
         }
 
-        /*
+        
           // vector<pair<int,pair<int,Point3d>>> BA_3d_points_tmp;
           vector<pair<int,Point3d>> BA_3d_points_tmp;
           
           vector<pair<int,pair<int,Point2f>>> BA_2d_points_tmp;
           vector<int> number_of_3d_points_loop_tmp;
-          int index_of_points=0;
-          for (int i=0;i<keyframe_prev;i++){
-            index_of_points+=number_of_3d_points_loop[i];
-          }
+          //int index_of_points=0;
+          // for (int i=0;i<keyframe_prev;i++){
+          //   index_of_points+=number_of_3d_points_loop[i];
+          // }
 
           int whole_size=0;
-            for (int i=keyframe_prev;i<=keyframe_curr;i++){
+            for (int i=0;i<=keyframe_curr;i++){
               number_of_3d_points_loop_tmp.push_back(number_of_3d_points_loop[i]);
               whole_size+=number_of_3d_points_loop[i];
             }
             
-          BA_3d_points_tmp.reserve(BA_3d_points_map_loop.size()-index_of_points);  
+          BA_3d_points_tmp.reserve(BA_3d_points_map_loop.size());  
             vector<int> BA_3d_map_points_tmp;
-            for (int i=index_of_points;i<BA_3d_points_map_loop.size();i++){
+            for (int i=0;i<BA_3d_points_map_loop.size();i++){
               
               BA_3d_points_tmp.push_back(make_pair(10000*BA_3d_points_map_loop[i].first+BA_3d_points_map_loop[i].second.first,BA_3d_points_map_loop[i].second.second));
               BA_2d_points_tmp.push_back(BA_2d_points_map_loop[i]);
@@ -1966,7 +1966,7 @@ int repro_sum=0;
               
             }
 
-          cout<<index_of_points<<"\n";
+          
           cout<<whole_size<<"\n";
           cout<<number_of_3d_points_loop_tmp.size()<<"\n";
           cout<<BA_2d_points_tmp.size()<<"\n";
@@ -2006,7 +2006,138 @@ int repro_sum=0;
           
           // cout<<BA_3d_points_tmp_tmp.size()<<"\n";
           
-          //Add landmark vertices
+          //relative scale by orb matching
+          cout<<"relative scale by orb matching"<<"\n";
+          double scale;
+          int prev_numFrame = numFrame_vec.at(keyframe_prev);
+          int curr_numFrame = numFrame_vec.at(keyframe_curr);
+          
+          // KeyPoint::convert( prevFeatures, keypoints_1);
+
+          sprintf(filename1, path_to_image, prev_numFrame);
+          sprintf(filename2, path_to_image, curr_numFrame);
+          //cout<<"load image"<<"\n";
+          Mat prev_image_c = imread(filename1);
+          Mat curr_image_c = imread(filename2);
+
+          Mat prev_image;
+          Mat curr_image;
+
+          cvtColor(prev_image_c, prev_image, COLOR_BGR2GRAY);
+          cvtColor(curr_image_c, curr_image, COLOR_BGR2GRAY);
+          int prev_idx=0;
+          for (int i=0;i<keyframe_prev;i++){
+            prev_idx+=number_of_3d_points_loop_tmp[i];
+          }
+          //cout<<prev_idx<<"\n";
+          vector<Point2f> prev_Features;
+          vector<Point3d> prev_3d_points;
+          for (int i=prev_idx;i<prev_idx+number_of_3d_points_loop_tmp[keyframe_prev];i++){
+            prev_Features.push_back(BA_2d_points_map_loop[i].second.second);
+            prev_3d_points.push_back(BA_3d_points_map_loop[i].second.second);
+            //cout<<"prev 3d points: "<<prev_3d_points[i]<<"\n";
+          }
+          vector<KeyPoint> prev_keypoints;
+          vector<KeyPoint> curr_keypoints;
+          
+          KeyPoint::convert( prev_Features, prev_keypoints);
+          KeyPoint::convert( prevFeatures, curr_keypoints);
+
+          Mat prev_desc;
+          Mat curr_desc;
+          detector->compute(prev_image,prev_keypoints,prev_desc);
+          detector->compute(curr_image,curr_keypoints,curr_desc);
+          //cout<<"BFMatcher"<<"\n";
+          BFMatcher matcher(NORM_HAMMING);
+          vector<DMatch> matches;
+          matcher.match(prev_desc,curr_desc,matches);
+
+
+          double minDist,maxDist;
+          minDist=maxDist=matches[0].distance;
+          for (int i=1;i<matches.size();i++){
+          double dist = matches[i].distance;
+          if (dist<minDist) minDist=dist;
+          if (dist>maxDist) maxDist=dist;
+          }
+          vector<DMatch> goodMatches;
+          double fTh= 2.0*minDist;
+          for (int i=0;i<matches.size();i++){
+            if (matches[i].distance <=max(fTh,0.02))
+              goodMatches.push_back(matches[i]);
+            }
+          //cout<<goodMatches.size()<<"\n";
+          Mat img_match;
+
+          //drawMatches(prev_image, prev_keypoints, curr_image, curr_keypoints, goodMatches, img_match);
+          // cout<<goodMatches.size()<<"\n";
+          // cout<<matches.size()<<"\n";
+          vector<double> dist_vec;
+          for (int i=0;i<goodMatches.size();i++){
+          int prev_gm_idx = goodMatches[i].queryIdx;
+          int curr_gm_idx = goodMatches[i].trainIdx;
+          
+          double x_prev = (prev_3d_points[prev_gm_idx].x-t_solve_f_vec[keyframe_prev].x);
+          double y_prev = (prev_3d_points[prev_gm_idx].y-t_solve_f_vec[keyframe_prev].y);
+          double z_prev = (prev_3d_points[prev_gm_idx].z-t_solve_f_vec[keyframe_prev].z);
+
+          double prev_dist=sqrt ( x_prev*x_prev + y_prev*y_prev +z_prev*z_prev );
+
+          double x_curr = (point_3d_map[curr_gm_idx].second.second.x-t_solve_f_vec[keyframe_curr].x);
+          double y_curr = (point_3d_map[curr_gm_idx].second.second.y-t_solve_f_vec[keyframe_curr].y);
+          double z_curr = (point_3d_map[curr_gm_idx].second.second.z-t_solve_f_vec[keyframe_curr].z);
+
+          double curr_dist= sqrt( x_curr*x_curr+y_curr*y_curr +z_curr*z_curr );
+          
+          //cout<<prev_3d_points[i]<<"\n";
+          //cout<<t_solve_f_vec[keyframe_prev]<<"\n";
+          // cout<<prev_dist<<"\n";
+          // cout<<curr_dist<<"\n";
+          // cout<<i<<"'th "<<"scale: "<<prev_dist/curr_dist<<"\n";
+          scale=curr_dist/prev_dist;
+          dist_vec.push_back(scale);
+
+          }
+
+          sort(dist_vec.begin(),dist_vec.end());
+          double rel_scale=dist_vec.at(goodMatches.size()/2);
+          cout<<"rel scale: "<<rel_scale<<"\n";
+          //imshow("Matches", img_match);
+          
+
+
+
+
+          // Convert all edges
+        int edge_index = 0;
+        for (auto& tmp : optimizer->edges()) {
+          g2o::EdgeSE3* e_se3 = static_cast<g2o::EdgeSE3*>(tmp);
+          int idx0 = e_se3->vertex(0)->id();
+          int idx1 = e_se3->vertex(1)->id();
+          g2o::EdgeSim3* e_sim3 = new g2o::EdgeSim3();
+          if ( (idx0==keyframe_prev)&&(idx1==gt_poses.size()-1)){
+            ToEdgeSim3(*e_se3,e_sim3,rel_scale);
+            //1./rel_scale
+            // cout<<"scale 1.5"<<"\n";
+          }
+          else{
+          ToEdgeSim3(*e_se3, e_sim3,1.0);
+          }
+          e_sim3->setId(edge_index++);
+          e_sim3->setVertex(0, optimizer_sim3.vertices()[idx0]);
+          e_sim3->setVertex(1, optimizer_sim3.vertices()[idx1]);
+          e_sim3->information() = Eigen::Matrix<double, 7, 7>::Identity();
+
+          optimizer_sim3.addEdge(e_sim3);
+        }
+
+        cout<<"initializing ..."<<"\n";
+        optimizer_sim3.initializeOptimization();
+        cout << "optimizing ..." << endl;
+        optimizer_sim3.optimize(100);
+        //landmark optimization
+        //Add landmark vertices
+        /*
           cout<<"Add landmark vertices"<<"\n";
           {
             g2o::VertexPointXYZ* landmark = new VertexPointXYZ;
@@ -2019,36 +2150,16 @@ int repro_sum=0;
             trans_vtx[1]=BA_3d_points_tmp_tmp[i].second.y;
             trans_vtx[2]=BA_3d_points_tmp_tmp[i].second.z;
             landmark->setEstimate(trans_vtx);
-            //optimizer_sim3.addVertex(landmark);          
+            optimizer_sim3.addVertex(landmark);          
             }
           }
           cout<<"vertex size: "<<optimizer_sim3.vertices().size()<<"\n";
           cout<<"BA_3d_map_points_tmp size: "<<BA_3d_map_points_tmp.size()<<"\n";
           cout<<"BA_3d_points_tmp size: "<<BA_3d_points_tmp_tmp.size()<<"\n";
-          */
-          // Convert all edges
-        int edge_index = 0;
-        for (auto& tmp : optimizer->edges()) {
-          g2o::EdgeSE3* e_se3 = static_cast<g2o::EdgeSE3*>(tmp);
-          int idx0 = e_se3->vertex(0)->id();
-          int idx1 = e_se3->vertex(1)->id();
-          g2o::EdgeSim3* e_sim3 = new g2o::EdgeSim3();
-          if ( (idx0==keyframe_prev)&&(idx1==gt_poses.size()-1)){
-            ToEdgeSim3(*e_se3,e_sim3,5.0);
-            cout<<"scale 1.5"<<"\n";
-          }
-          else{
-          ToEdgeSim3(*e_se3, e_sim3,1.0);
-          }
-          e_sim3->setId(edge_index++);
-          e_sim3->setVertex(0, optimizer_sim3.vertices()[idx0]);
-          e_sim3->setVertex(1, optimizer_sim3.vertices()[idx1]);
-          e_sim3->information() = Eigen::Matrix<double, 7, 7>::Identity();
 
-          optimizer_sim3.addEdge(e_sim3);
-        }
+
         // Add landmark edges
-        /*
+        
         { 
           cout<<"Add landmark edges"<<"\n";
           int number_of_points=0;
@@ -2077,19 +2188,12 @@ int repro_sum=0;
           landmarkObservation->setVertex(1,optimizer_sim3.vertices().find(gt_poses.size()+(it-BA_3d_map_points_tmp.begin()))->second);
           
           Eigen::Vector3d trans_landmark;
-          if (i!=gt_poses.size()-1){
+          
           trans_landmark[0]=-(sim3.translation()[0]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.x);
           trans_landmark[1]=-(sim3.translation()[1]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.y);
           trans_landmark[2]=-(sim3.translation()[2]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.z);
-          }
-          else{
-            g2o::VertexSim3Expmap* vtx2 =
-          static_cast<g2o::VertexSim3Expmap*>(optimizer_sim3.vertex(0));
-          g2o::Sim3 sim32 = vtx2->estimate().inverse();
-            trans_landmark[0]=-(sim32.translation()[0]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.x);
-          trans_landmark[1]=-(sim32.translation()[1]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.y);
-          trans_landmark[2]=-(sim32.translation()[2]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.z);
-          }
+          
+          
           //cout<<"trans_landmark: "<<trans_landmark<<"\n";
           landmarkObservation->setMeasurement(trans_landmark);
           // landmarkObservation->setInformation(simEdge.information);
@@ -2112,11 +2216,19 @@ int repro_sum=0;
         cout<<"edge size: "<<optimizer_sim3.edges().size()<<"\n";
         
         cout<<"vertex size: "<<optimizer_sim3.vertices().size()<<"\n";
-        */
+
+
+
+
+
         cout<<"initializing ..."<<"\n";
         optimizer_sim3.initializeOptimization();
         cout << "optimizing ..." << endl;
         optimizer_sim3.optimize(100);
+        */
+
+
+
 
         t_solve_f_vec.erase(t_solve_f_vec.begin(),t_solve_f_vec.begin()+keyframe_curr);
         quat_vec.erase(quat_vec.begin(),quat_vec.begin()+keyframe_curr);
@@ -2132,13 +2244,18 @@ int repro_sum=0;
         //g2o::VertexSE3* vtx = dynamic_cast<g2o::VertexSE3*>(optimizer->vertex(i));
         g2o::VertexSim3Expmap* vtx =
         static_cast<g2o::VertexSim3Expmap*>(optimizer_sim3.vertex(i));
-        g2o::Sim3 sim3 = vtx->estimate().inverse();
-        g2o::Sim3 sim3_inv = vtx->estimate();
-        Eigen::Matrix3d r = sim3.rotation().toRotationMatrix();
-        Eigen::Vector3d t = sim3.translation();
+        g2o::Sim3 sim3 = vtx->estimate().inverse(); //pose
+        g2o::Sim3 sim3_inv = vtx->estimate(); // projection
+        Eigen::Matrix3d r = sim3_inv.rotation().toRotationMatrix(); // projection
+        Eigen::Vector3d t = sim3_inv.translation();
+        
+        double s = sim3_inv.scale();
+        t *=(1./s);
+        Eigen::Matrix3d r_inv = r.transpose();
+        Eigen::Vector3d t_traj = -r_inv*t;
+          
 
-        Eigen::Matrix3d r_inv = sim3_inv.rotation().toRotationMatrix();
-        Eigen::Vector3d t_inv = sim3_inv.translation();
+
 
         Eigen::Matrix3d mat_eig_tmp;
       for (int i=0;i<3;i++){
@@ -2158,19 +2275,19 @@ int repro_sum=0;
           Mat r_inverse(3,3,CV_64F);
           for (int i=0;i<3;i++){
             for(int j=0;j<3;j++){
-              r_inverse.at<double>(i,j)=r_inv(i,j);
+              r_inverse.at<double>(i,j)=r(i,j);
             }
           }
           Rodrigues(r_inverse,rvec_tmp);
           rvec_vec.push_back(Point3d(rvec_tmp.at<double>(0),rvec_tmp.at<double>(1),rvec_tmp.at<double>(2)));
-          tvec_vec.push_back(Point3d(t_inv[0],t_inv[1],t_inv[2]));
+          tvec_vec.push_back(Point3d(t[0],t[1],t[2]));
         }
-          t_solve_f_vec.push_back(Point3d(t[0],t[1],t[2]));
+          t_solve_f_vec.push_back(Point3d(t_traj[0],t_traj[1],t_traj[2]));
 
         trajectory = cloud2->points[i];
-        trajectory.x=t[0];
-        trajectory.y=t[1];
-        trajectory.z=t[2];
+        trajectory.x=t_traj[0];
+        trajectory.y=t_traj[1];
+        trajectory.z=t_traj[2];
 
         
         // cout<<trajectory.x<<" "<<trajectory.y<<" "<<trajectory.z<<"\n";
@@ -2183,11 +2300,12 @@ int repro_sum=0;
         trajectory.b=0;
         msg2->points.push_back(trajectory);
       }
+      
         cout<<"rvec_vec size: "<<rvec_vec.size()<<"\n";
         traj_pub.publish(msg2);
         keyframe_pub.publish(msg4);
         cout<<"keyframe pub publish"<<"\n";
-
+        waitKey();
           rvec.at<double>(0)=rvec_vec[local_ba_frame-1].x;
           rvec.at<double>(1)=rvec_vec[local_ba_frame-1].y;
           rvec.at<double>(2)=rvec_vec[local_ba_frame-1].z;
@@ -2196,7 +2314,16 @@ int repro_sum=0;
           tvec.at<double>(1)=tvec_vec[local_ba_frame-1].y;
           tvec.at<double>(2)=tvec_vec[local_ba_frame-1].z;
 
+        Rodrigues(rvec,R_solve);
+   
+         R_solve_inv = R_solve.t();
+        // cout<<R_solve_inv<<"\n";
+        // waitKey(1000);
+        t_solve_f = -R_solve_inv*tvec;
 
+
+
+/*
 //after loop closing ba
         cout<<"loop closing end"<<"\n";
         
@@ -2204,8 +2331,6 @@ int repro_sum=0;
         //after loop closing bundle adjustment
 
 {
-
-
   cout<<"full BA start"<<"\n";
   //cout<<"before local ba tvec: "<<tvec.at<double>(0)<<" "<<tvec.at<double>(1)<<" "<<tvec.at<double>(2)<<"\n";
 
@@ -2403,7 +2528,7 @@ Rodrigues(rvec,R_solve);
     
 
 }
-
+*/
 
 
         Isloopdetected=0;

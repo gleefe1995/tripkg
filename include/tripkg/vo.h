@@ -1564,3 +1564,71 @@ Rodrigues(rvec,R_solve);
 
 }
 */
+
+
+// Add landmark edges
+        /*
+        { 
+          cout<<"Add landmark edges"<<"\n";
+          int number_of_points=0;
+          int number_of_points_prev=0;
+          for (int i=0;i<gt_poses.size();i++){
+            //cout<<"i: "<<i<<"\n";
+          
+      //       edge->setVertex(0, optimizer->vertices().find(poseid)->second);
+      // edge->setVertex(1, optimizer->vertices().find(ptid)->second);
+          number_of_points+=number_of_3d_points_loop_tmp[i];
+          
+          g2o::VertexSim3Expmap* vtx =
+          static_cast<g2o::VertexSim3Expmap*>(optimizer_sim3.vertex(i));
+          g2o::Sim3 sim3 = vtx->estimate().inverse();
+          
+          //cout<<"from j: "<<number_of_points_prev<<", to: "<<number_of_points<<"\n";
+          for (int j=number_of_points_prev;j<number_of_points;j++){
+            g2o::EdgeSE3PointXYZ* landmarkObservation =  new EdgeSE3PointXYZ;
+          //landmarkObservation->vertices()[0] = optimizer_sim3.vertex(i);
+          landmarkObservation->setVertex(0,optimizer_sim3.vertices().find(i)->second);
+            auto it =find(BA_3d_map_points_tmp.begin(), BA_3d_map_points_tmp.end(), BA_2d_points_tmp.at(j).first*10000+BA_2d_points_tmp.at(j).second.first);
+
+          //cout<<"it-BA_3d_map_points_tmp: "<<it-BA_3d_map_points_tmp.begin()<<"\n";
+
+          //landmarkObservation->vertices()[1] = optimizer_sim3.vertex(gt_poses.size()+(it-BA_3d_map_points_tmp.begin()));
+          landmarkObservation->setVertex(1,optimizer_sim3.vertices().find(gt_poses.size()+(it-BA_3d_map_points_tmp.begin()))->second);
+          
+          Eigen::Vector3d trans_landmark;
+          if (i!=gt_poses.size()-1){
+          trans_landmark[0]=-(sim3.translation()[0]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.x);
+          trans_landmark[1]=-(sim3.translation()[1]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.y);
+          trans_landmark[2]=-(sim3.translation()[2]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.z);
+          }
+          else{
+            g2o::VertexSim3Expmap* vtx2 =
+          static_cast<g2o::VertexSim3Expmap*>(optimizer_sim3.vertex(0));
+          g2o::Sim3 sim32 = vtx2->estimate().inverse();
+            trans_landmark[0]=-(sim32.translation()[0]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.x);
+          trans_landmark[1]=-(sim32.translation()[1]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.y);
+          trans_landmark[2]=-(sim32.translation()[2]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.z);
+          }
+          //cout<<"trans_landmark: "<<trans_landmark<<"\n";
+          landmarkObservation->setMeasurement(trans_landmark);
+          // landmarkObservation->setInformation(simEdge.information);
+          // landmarkObservation->information() = Eigen::Matrix<double, 3, 3>::Identity();
+          Eigen::MatrixXd info_matrix = Eigen::MatrixXd::Identity(3,3);
+          for(int i=0; i<3; i++){
+              info_matrix(i, i) = 1;
+          }
+          landmarkObservation->setInformation(info_matrix);
+          
+          //cout<<"Add landmark edge"<<"\n";
+          landmarkObservation->setParameterId(0, 0);
+          //optimizer_sim3.addEdge(landmarkObservation);
+          
+          }
+          number_of_points_prev=number_of_points;
+          }
+        
+        }
+        cout<<"edge size: "<<optimizer_sim3.edges().size()<<"\n";
+        
+        cout<<"vertex size: "<<optimizer_sim3.vertices().size()<<"\n";
+        */
