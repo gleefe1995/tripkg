@@ -190,7 +190,8 @@ void featureDetection_esential(Mat img_1, vector<Point2f> &points1, vector<pair<
   keyframe_number++;
 }
 
-void featureDetection(Mat img_1, vector<Point2f> &points1, vector<pair<int, pair<int, Point2f>>> &points1_map, int &keyframe_number, int MAX_CORNERS)
+void featureDetection(Mat img_1, vector<Point2f> &points1, vector<pair<int, pair<int, Point2f>>> &points1_map, int &keyframe_number, int MAX_CORNERS
+                          )
 {
 
   // points1_map.clear();
@@ -230,6 +231,7 @@ void featureDetection(Mat img_1, vector<Point2f> &points1, vector<pair<int, pair
     keyPointsSorted.push_back(keyPoints[Indx[i]]);
 
   vector<cv::KeyPoint> sscKP = ssc(keyPointsSorted, numRetPoints, tolerance, img_1.cols, img_1.rows);
+  
   KeyPoint::convert(sscKP, points1, vector<int>());
   cout << "The number of new detected points" << points1.size() << "\n";
 
@@ -308,6 +310,9 @@ void featureTracking(Mat img_1, Mat img_2, vector<Point2f> &points1, vector<Poin
       }
       points1.erase(points1.begin() + (i - indexCorrection));
       points2.erase(points2.begin() + (i - indexCorrection));
+
+      // key_points1.erase(key_points1.begin() + (i - indexCorrection));
+      // key_points2.erase(key_points2.begin() + (i - indexCorrection));
 
       points1_map.erase(points1_map.begin() + (i - indexCorrection));
       points2_map_tmp.erase(points2_map_tmp.begin() + (i - indexCorrection));
@@ -578,7 +583,7 @@ struct SnavelyReprojectionError_Local
     three_to_p_eig = Kd.cast<T>() * Relative_homo_R * p3he;
 
     // cv2eigen(three_to_p,three_to_p_eig);
-    // cout<<p3he<<"\n";
+    //cout<<p3he<<"\n";
     // waitKey();
     //cout<<Kd.cast<T>()<<"\n";
 
@@ -624,6 +629,119 @@ struct SnavelyReprojectionError_Local
   double ppy;
   Eigen::VectorXi number_of_3d_points_eig;
 };
+
+
+
+// ----------------------------------------------------------------------------
+struct SnavelyReprojectionError_full_ba
+{
+  SnavelyReprojectionError_full_ba(double observed_x, double observed_y, double focal, double ppx, double ppy, int j, Eigen::VectorXi number_of_3d_points_eig)
+      : observed_x(observed_x), observed_y(observed_y), focal(focal), ppx(ppx), ppy(ppy), j(j), number_of_3d_points_eig(number_of_3d_points_eig) {}
+
+  template <typename T>
+  bool operator()(const T *const rvec_eig,
+                  const T *const tvec_eig,
+                  const T *const point_3d_homo_eig,
+                  T *residuals) const
+  {
+    
+    const T theta = sqrt(rvec_eig[0] * rvec_eig[0] + rvec_eig[1] * rvec_eig[1] + rvec_eig[2] * rvec_eig[2]);
+    const T tvec_eig_0 = tvec_eig[0];
+    const T tvec_eig_1 = tvec_eig[1];
+    const T tvec_eig_2 = tvec_eig[2];
+
+    
+    const T w1 = rvec_eig[0] / theta;
+    const T w2 = rvec_eig[1] / theta;
+    const T w3 = rvec_eig[2] / theta;
+
+    const T cos = ceres::cos(theta);
+    const T sin = ceres::sin(theta);
+
+    // Eigen::Matrix<T,3,3> R_solve_homo;
+    // R_solve_homo << cos+w1*w1*(1-cos), w1*w2*(1-cos)-w3*sin, w1*w3*(1-cos)+w2*sin,
+    //                 w1*w2*(1-cos)+w3*sin, cos+w2*w2*(1-cos), w2*w3*(1-cos)-w1*sin,
+    //                 w1*w3*(1-cos)-w2*sin, w2*w3*(1-cos)+w1*sin, cos+w3*w3*(1-cos);
+
+    Eigen::Matrix<T, 3, 4> Relative_homo_R;
+    Relative_homo_R << cos + w1 * w1 * (static_cast<T>(1) - cos), w1 * w2 * (static_cast<T>(1) - cos) - w3 * sin, w1 * w3 * (static_cast<T>(1) - cos) + w2 * sin, tvec_eig_0,
+        w1 * w2 * (static_cast<T>(1) - cos) + w3 * sin, cos + w2 * w2 * (static_cast<T>(1) - cos), w2 * w3 * (static_cast<T>(1) - cos) - w1 * sin, tvec_eig_1,
+        w1 * w3 * (static_cast<T>(1) - cos) - w2 * sin, w2 * w3 * (static_cast<T>(1) - cos) + w1 * sin, cos + w3 * w3 * (static_cast<T>(1) - cos), tvec_eig_2;
+    
+    
+    Eigen::Matrix<T, 1, 3> three_to_p_eig;
+
+    Eigen::Matrix<double, 3, 3> Kd;
+    Kd << focal, 0, ppx,
+        0, focal, ppy,
+        0, 0, 1;
+    // Kd = Kd.cast<T>();
+
+    //Eigen::Matrix<T,4,1> point_3d_homo;
+    //point_3d_homo_eig = point_3d_homo_eig.cast<T>();
+    //point_3d_homo<<point_3d_homo_eig[0],point_3d_homo_eig[1],point_3d_homo_eig[2],point_3d_homo_eig[3];
+
+    Eigen::Matrix<T, 4, 1> p3he(point_3d_homo_eig[0], point_3d_homo_eig[1], point_3d_homo_eig[2], static_cast<T>(1));
+    // cout<<p3he(0,0)<<"\n";
+    // cout<<p3he(1,0)<<"\n";
+    // cout<<p3he(2,0)<<"\n";
+    // cout<<p3he(3,0)<<"\n";
+
+    three_to_p_eig = Kd.cast<T>() * Relative_homo_R * p3he;
+
+    // cv2eigen(three_to_p,three_to_p_eig);
+    //cout<<"p3he: "<<p3he<<"\n";
+    // waitKey();
+    //cout<<Kd.cast<T>()<<"\n";
+
+    //   cout<<three_to_p_eig<<"\n";
+
+    // cout<<"RhR 03"<<Relative_homo_R(0,3)<<"\n";
+    // cout<<"RhR 13"<<Relative_homo_R(1,3)<<"\n";
+    // cout<<"RhR 23"<<Relative_homo_R(2,3)<<"\n";
+
+    // three_to_p_eig[0]=three_to_p.at<double>(0);
+    // three_to_p_eig[1]=three_to_p.at<double>(1);
+    // three_to_p_eig[2]=three_to_p.at<double>(2);
+
+    T predicted_x = (three_to_p_eig[0] / three_to_p_eig[2]);
+    T predicted_y = (three_to_p_eig[1] / three_to_p_eig[2]);
+
+    // cout<<"predicted_x: "<<predicted_x<<"\n";
+    // cout<<"predicted_y: "<<predicted_y<<"\n";
+    // cout<<"j: "<<j<<"\n";
+    // cout<<"observed_x: "<<T(observed_x)<<"\n";
+    // cout<<"observed_y: "<<T(observed_y)<<"\n";
+    // The error is the difference between the predicted and observed position.
+    residuals[0] = predicted_x - T(observed_x);
+    residuals[1] = predicted_y - T(observed_y);
+
+    // cout<<"residual 0"<<residuals[0]<<"\n";
+    // cout<<"residual 1"<<residuals[1]<<"\n";
+    
+    return true;
+  }
+
+  // Factory to hide the construction of the CostFunction object from
+  // the client code.
+  // static ceres::CostFunction* Create(const double observed_x,
+  //                                    const double observed_y,
+  //                                    const double focal,
+  //                                    const double ppx,
+  //                                    const double ppy) {
+  //   return (new ceres::AutoDiffCostFunction<SnavelyReprojectionError_Local, 2, 3,3,4>(
+  //       new SnavelyReprojectionError_Local(observed_x, observed_y,focal,ppx,ppy)));
+  // }
+
+  double observed_x;
+  double observed_y;
+  int j;
+  double focal;
+  double ppx;
+  double ppy;
+  Eigen::VectorXi number_of_3d_points_eig;
+};
+
 
 struct SnavelyReprojectionError_Local_pose_fixed
 {
@@ -743,8 +861,21 @@ struct SnavelyReprojectionError_Local_pose_fixed
   Eigen::VectorXd tvec_eig;
 };
 
-// ----------------------------------------------------------------------------
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+//--------------------------------------------------------------------------
 void loadFeatures(vector<vector<cv::Mat>> &features, const char *path_to_image)
 {
   features.clear();
@@ -883,11 +1014,10 @@ void testDatabase(const vector<vector<cv::Mat>> &features, OrbDatabase &db, bool
       {
         //cout << "Searching for Image " << i<<" "<<"Best search Id and Score: "<<entry_id<<" "<<score<<"\n";
 
-        if ( (score > 0.13))
+        if ( (score > 0.2)&&(i==features.size()-1))
         {
-          cout << "loop detected!!"
-               << "\n";
-          cout << score << "\n";
+          cout << "loop detected!!"<< "\n";
+          cout << "Score: "<<score << "\n";
           keyframe_prev_id = min(entry_id, i);
           keyframe_curr_id = max(entry_id, i);
           // ret=ret2;
@@ -914,18 +1044,12 @@ void testDatabase(const vector<vector<cv::Mat>> &features, OrbDatabase &db, bool
 // ----------------------------------------------------------------------------
 //g2o
 
-int getNewID()
-{
-  static int vertex_id = 0;
-  return vertex_id++;
-}
-
-void addPoseVertex(g2o::SparseOptimizer *optimizer, g2o::SE3Quat &pose, bool set_fixed)
+void addPoseVertex(g2o::SparseOptimizer *optimizer, g2o::SE3Quat &pose, bool set_fixed,int id)
 {
   // std::cout << "add pose: t=" << pose.translation().transpose()
   //           << " r=" << pose.rotation().coeffs().transpose() << std::endl;
   g2o::VertexSE3 *v_se3 = new g2o::VertexSE3;
-  v_se3->setId(getNewID());
+  v_se3->setId(id);
   if (set_fixed)
     v_se3->setEstimate(pose);
   v_se3->setFixed(set_fixed);
@@ -1632,3 +1756,183 @@ Rodrigues(rvec,R_solve);
         
         cout<<"vertex size: "<<optimizer_sim3.vertices().size()<<"\n";
         */
+
+
+
+
+
+
+
+
+
+
+
+       //landmark optimization
+        //Add landmark vertices
+        /*
+          cout<<"Add landmark vertices"<<"\n";
+          {
+            g2o::VertexPointXYZ* landmark = new VertexPointXYZ;
+            
+            for (int i=0;i<BA_3d_points_tmp_tmp.size();i++){
+            landmark->setId(i+gt_poses.size());
+            Eigen::Vector3d trans_vtx;
+            // trans_vtx->x
+            trans_vtx[0]=BA_3d_points_tmp_tmp[i].second.x;
+            trans_vtx[1]=BA_3d_points_tmp_tmp[i].second.y;
+            trans_vtx[2]=BA_3d_points_tmp_tmp[i].second.z;
+            landmark->setEstimate(trans_vtx);
+            optimizer_sim3.addVertex(landmark);          
+            }
+          }
+          cout<<"vertex size: "<<optimizer_sim3.vertices().size()<<"\n";
+          cout<<"BA_3d_map_points_tmp size: "<<BA_3d_map_points_tmp.size()<<"\n";
+          cout<<"BA_3d_points_tmp size: "<<BA_3d_points_tmp_tmp.size()<<"\n";
+
+
+        // Add landmark edges
+        
+        { 
+          cout<<"Add landmark edges"<<"\n";
+          int number_of_points=0;
+          int number_of_points_prev=0;
+          for (int i=0;i<gt_poses.size();i++){
+            //cout<<"i: "<<i<<"\n";
+          
+      //       edge->setVertex(0, optimizer->vertices().find(poseid)->second);
+      // edge->setVertex(1, optimizer->vertices().find(ptid)->second);
+          number_of_points+=number_of_3d_points_loop_tmp[i];
+          
+          g2o::VertexSim3Expmap* vtx =
+          static_cast<g2o::VertexSim3Expmap*>(optimizer_sim3.vertex(i));
+          g2o::Sim3 sim3 = vtx->estimate().inverse();
+          
+          //cout<<"from j: "<<number_of_points_prev<<", to: "<<number_of_points<<"\n";
+          for (int j=number_of_points_prev;j<number_of_points;j++){
+            g2o::EdgeSE3PointXYZ* landmarkObservation =  new EdgeSE3PointXYZ;
+          //landmarkObservation->vertices()[0] = optimizer_sim3.vertex(i);
+          landmarkObservation->setVertex(0,optimizer_sim3.vertices().find(i)->second);
+            auto it =find(BA_3d_map_points_tmp.begin(), BA_3d_map_points_tmp.end(), BA_2d_points_tmp.at(j).first*10000+BA_2d_points_tmp.at(j).second.first);
+
+          //cout<<"it-BA_3d_map_points_tmp: "<<it-BA_3d_map_points_tmp.begin()<<"\n";
+
+          //landmarkObservation->vertices()[1] = optimizer_sim3.vertex(gt_poses.size()+(it-BA_3d_map_points_tmp.begin()));
+          landmarkObservation->setVertex(1,optimizer_sim3.vertices().find(gt_poses.size()+(it-BA_3d_map_points_tmp.begin()))->second);
+          
+          Eigen::Vector3d trans_landmark;
+          
+          trans_landmark[0]=-(sim3.translation()[0]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.x);
+          trans_landmark[1]=-(sim3.translation()[1]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.y);
+          trans_landmark[2]=-(sim3.translation()[2]-BA_3d_points_tmp_tmp[it-BA_3d_map_points_tmp.begin()].second.z);
+          
+          
+          //cout<<"trans_landmark: "<<trans_landmark<<"\n";
+          landmarkObservation->setMeasurement(trans_landmark);
+          // landmarkObservation->setInformation(simEdge.information);
+          // landmarkObservation->information() = Eigen::Matrix<double, 3, 3>::Identity();
+          Eigen::MatrixXd info_matrix = Eigen::MatrixXd::Identity(3,3);
+          for(int i=0; i<3; i++){
+              info_matrix(i, i) = 1;
+          }
+          landmarkObservation->setInformation(info_matrix);
+          
+          //cout<<"Add landmark edge"<<"\n";
+          landmarkObservation->setParameterId(0, 0);
+          //optimizer_sim3.addEdge(landmarkObservation);
+          
+          }
+          number_of_points_prev=number_of_points;
+          }
+        
+        }
+        cout<<"edge size: "<<optimizer_sim3.edges().size()<<"\n";
+        
+        cout<<"vertex size: "<<optimizer_sim3.vertices().size()<<"\n";
+
+
+
+
+
+        cout<<"initializing ..."<<"\n";
+        optimizer_sim3.initializeOptimization();
+        cout << "optimizing ..." << endl;
+        optimizer_sim3.optimize(100);
+        */
+
+
+
+
+
+
+
+
+
+
+
+        /*
+        // vector<pair<int,pair<int,Point3d>>> BA_3d_points_tmp;
+          vector<pair<int,Point3d>> BA_3d_points_tmp;
+          
+          vector<pair<int,pair<int,Point2f>>> BA_2d_points_tmp;
+          vector<int> number_of_3d_points_loop_tmp;
+          //int index_of_points=0;
+          // for (int i=0;i<keyframe_prev;i++){
+          //   index_of_points+=number_of_3d_points_loop[i];
+          // }
+
+          int whole_size=0;
+            for (int i=0;i<=keyframe_curr;i++){
+              number_of_3d_points_loop_tmp.push_back(number_of_3d_points_loop[i]);
+              whole_size+=number_of_3d_points_loop[i];
+            }
+            
+          BA_3d_points_tmp.reserve(BA_3d_points_map_loop.size());  
+            vector<int> BA_3d_map_points_tmp;
+            for (int i=0;i<BA_3d_points_map_loop.size();i++){
+              
+              BA_3d_points_tmp.push_back(make_pair(10000*BA_3d_points_map_loop[i].first+BA_3d_points_map_loop[i].second.first,BA_3d_points_map_loop[i].second.second));
+              BA_2d_points_tmp.push_back(BA_2d_points_map_loop[i]);
+              BA_3d_map_points_tmp.push_back(10000*BA_3d_points_map_loop[i].first+BA_3d_points_map_loop[i].second.first);
+              
+            }
+
+          
+          cout<<whole_size<<"\n";
+          cout<<number_of_3d_points_loop_tmp.size()<<"\n";
+          cout<<BA_2d_points_tmp.size()<<"\n";
+          cout<<BA_3d_points_tmp.size()<<"\n";
+          cout<<BA_2d_points_map_loop.size()<<"\n";
+          cout<<BA_3d_points_map_loop.size()<<"\n";
+          cout<<"sorting BA_3d_pionts"<<"\n";
+
+          sort(BA_3d_points_tmp.begin(),BA_3d_points_tmp.end(),compare_point2);
+          sort(BA_3d_map_points_tmp.begin(),BA_3d_map_points_tmp.end());
+
+          
+          int BA_3d_points_tmp_size=BA_3d_points_tmp.size();
+          vector<pair<int,Point3d>> BA_3d_points_tmp_tmp;
+          for (int i=0;i<BA_3d_points_tmp.size();i++){
+            if ((i>0)&&(BA_3d_points_tmp[i-1].first!=BA_3d_points_tmp[i].first))
+            {
+              BA_3d_points_tmp_tmp.push_back(BA_3d_points_tmp[i]);
+            }
+            else if(i==0){
+              BA_3d_points_tmp_tmp.push_back(BA_3d_points_tmp[i]);
+            }
+          }
+          
+
+
+
+          // auto it = unique(BA_3d_points_tmp.begin(),BA_3d_points_tmp.end());
+          // BA_3d_points_tmp.erase(it,BA_3d_points_tmp.end());
+
+          
+          vector<int>::iterator it2=unique(BA_3d_map_points_tmp.begin(),BA_3d_map_points_tmp.end());
+          BA_3d_map_points_tmp.erase(it2,BA_3d_map_points_tmp.end());
+          
+          // waitKey();
+          
+          
+          // cout<<BA_3d_points_tmp_tmp.size()<<"\n";
+          */
