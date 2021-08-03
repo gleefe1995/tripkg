@@ -759,15 +759,15 @@ struct SnavelyReprojectionError_Local_pose_fixed
 
     int count = 0;
     //cout<<"index of BA_2d_points: "<<j<<"\n";
-    for (int i = 0; i < number_of_3d_points_eig.size(); i++)
-    {
-      number_of_3d_points += number_of_3d_points_eig[i];
-      if (j < number_of_3d_points)
-      {
-        count = i;
-        break;
-      }
-    }
+    // for (int i = 0; i < number_of_3d_points_eig.size(); i++)
+    // {
+    //   number_of_3d_points += number_of_3d_points_eig[i];
+    //   if (j < number_of_3d_points)
+    //   {
+    //     count = i;
+    //     break;
+    //   }
+    // }
 
     const T theta = static_cast<T>( sqrt(rvec_eig[3 * count] * rvec_eig[3 * count] + rvec_eig[3 * count + 1] * rvec_eig[3 * count + 1] + rvec_eig[3 * count + 2] * rvec_eig[3 * count + 2]));
     const T tvec_eig_0 = static_cast<T>(tvec_eig[3 * count]);
@@ -992,8 +992,11 @@ void testDatabase(const vector<vector<cv::Mat>> &features, OrbDatabase &db, bool
     db.query(features[i], ret2, 15);
 
     // ret[0] is always the same image in this case, because we added it to the
+    
     // database. ret[1] is the second best match.
-    //cout << "Searching for Image " << i<<" "<<ret2<<"\n";
+    if (i==features.size()-1){
+    cout << "Searching for Image " << i<<" "<<ret2<<"\n";
+    }
 
     if (features.size() > 15)
     {
@@ -1014,7 +1017,7 @@ void testDatabase(const vector<vector<cv::Mat>> &features, OrbDatabase &db, bool
       {
         //cout << "Searching for Image " << i<<" "<<"Best search Id and Score: "<<entry_id<<" "<<score<<"\n";
 
-        if ( (score > 0.2)&&(i==features.size()-1))
+        if ( (score > 0.14)&&(i==features.size()-1))
         {
           cout << "loop detected!!"<< "\n";
           cout << "Score: "<<score << "\n";

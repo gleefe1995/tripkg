@@ -22,8 +22,8 @@
     // const cv::Point2d pp(609.5593, 172.854);
     const double focal = 707.0912; //04-12
     const cv::Point2d pp(601.8873, 183.1104);
-const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/06/image_0/%06d.png";
-string path_to_pose = "/home/gleefe/Downloads/dataset/poses/06.txt";
+const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/05/image_0/%06d.png";
+string path_to_pose = "/home/gleefe/Downloads/dataset/poses/05.txt";
 
 
 using namespace std;
@@ -398,6 +398,9 @@ t_solve_f_vec.push_back(Point3d(0,0,0));
       rvec_vec_loop.push_back(Point3d(rvec_tmp1.at<double>(0),rvec_tmp1.at<double>(1),rvec_tmp1.at<double>(2)));
       tvec_vec_loop.push_back(Point3d(0,0,0));
 
+      int prev_traj_num=0;
+
+      vector<int> loop_keyframe_num;
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1871,7 +1874,16 @@ int repro_sum=0;
       QueryResults ret;
       testDatabase(features,db,Isloopdetected,keyframe_prev,keyframe_curr);
       // &&once_loop_detected==0
-      if (Isloopdetected){
+
+      if ((features.size()-prev_traj_num)>20){
+        once_loop_detected=0;
+      }
+
+      if (once_loop_detected==1){
+        Isloopdetected=0;
+      }
+
+      if (Isloopdetected&&(once_loop_detected==0)){
         vector<g2o::SE3Quat> gt_poses;
         
         cout<<"loop closing start"<<"\n";
@@ -2376,27 +2388,6 @@ int repro_sum=0;
         // waitKey();
 
 
-        //remove local ba 3d point
-        {
-          // vector<pair<int,pair<int,Point3d>>> BA_3d_points_map_tmp=BA_3d_points_map;
-        sort(BA_3d_points_map.begin(),BA_3d_points_map.end(),compare_point);
-        
-        vector<pair<int,pair<int,Point3d>>> BA_3d_points_map_rm;
-        
-          for (int i=0;i<BA_3d_points_map.size();i++){
-            if ( (i>0)&&((BA_3d_points_map[i-1].first!=BA_3d_points_map[i].first)||(BA_3d_points_map[i-1].second.first!=BA_3d_points_map[i].second.first)))
-            {
-              BA_3d_points_map_rm.push_back(BA_3d_points_map[i]);
-            }
-            else if(i==0){
-              BA_3d_points_map_rm.push_back(BA_3d_points_map[i]);
-              
-            }
-          }
-          BA_3d_points_map=BA_3d_points_map_rm;
-        }
-       
-
 
         cout<<"BA_3d_points_map_rm size: "<<BA_3d_points_map.size()<<"\n";
         cout<<"BA_3d_points_map_loop_rm size: "<<BA_3d_points_map_loop_rm.size()<<"\n";
@@ -2522,15 +2513,14 @@ int repro_sum=0;
           //cout<<BA_2d_points_eig[0]<<" "<<BA_2d_points_eig[1]<<"\n";
           
            ceres::CostFunction* cost_function2 = 
-          new ceres::AutoDiffCostFunction<SnavelyReprojectionError_full_ba, 2,3,3,3>(
-            new SnavelyReprojectionError_full_ba(BA_2d_points_eig[0],BA_2d_points_eig[1],focal,pp.x,pp.y,i,number_of_3d_points_eig)
+          new ceres::AutoDiffCostFunction<SnavelyReprojectionError_Local_pose_fixed, 2,3>(
+            new SnavelyReprojectionError_Local_pose_fixed(BA_2d_points_eig[0],BA_2d_points_eig[1],focal,pp.x,pp.y,i,number_of_3d_points_eig,
+                                                    rvec_eig_local.col(index_vec),tvec_eig_local.col(index_vec))
           );
        
     
     problem2.AddResidualBlock(cost_function2,
                              NULL ,
-                             rvec_eig_local.col(index_vec).data(),
-                             tvec_eig_local.col(index_vec).data(),
                              BA_3d_points_eig.col(it-BA_3d_map_points_loop.begin()).data());
           }
       
@@ -2615,6 +2605,25 @@ int repro_sum=0;
 BA_3d_points_map.erase(BA_3d_points_map.begin(),BA_3d_points_map.begin()+BA_3d_points_map_size);
 point_3d_map.erase(point_3d_map.begin(),point_3d_map.begin()+point_3d_map_size);
 
+ //remove local ba 3d point
+        {
+          
+          BA_3d_points_map_tmp=BA_3d_points_map;
+        sort(BA_3d_points_map_tmp.begin(),BA_3d_points_map_tmp.end(),compare_point);
+        
+        vector<pair<int,pair<int,Point3d>>> BA_3d_points_map_rm;
+        
+          for (int i=0;i<BA_3d_points_map_tmp.size();i++){
+            if ( (i>0)&&((BA_3d_points_map_tmp[i-1].first!=BA_3d_points_map_tmp[i].first)||(BA_3d_points_map_tmp[i-1].second.first!=BA_3d_points_map_tmp[i].second.first)))
+            {
+              BA_3d_points_map_rm.push_back(BA_3d_points_map_tmp[i]);
+            }
+            else if(i==0){
+              BA_3d_points_map_rm.push_back(BA_3d_points_map_tmp[i]);
+            }
+          }
+          BA_3d_points_map_tmp=BA_3d_points_map_rm;
+        }
 
   rvec.at<double>(0)=rvec_vec[local_ba_frame-1].x;
   rvec.at<double>(1)=rvec_vec[local_ba_frame-1].y;
@@ -2710,6 +2719,7 @@ point_3d_map.erase(point_3d_map.begin(),point_3d_map.begin()+point_3d_map_size);
         Isloopdetected=0;
         once_loop_detected=1;
 
+        prev_traj_num=rvec_vec_loop.size();
         
       }
       #endif
