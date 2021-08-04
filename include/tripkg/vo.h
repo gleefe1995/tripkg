@@ -233,7 +233,7 @@ void featureDetection(Mat img_1, vector<Point2f> &points1, vector<pair<int, pair
   vector<cv::KeyPoint> sscKP = ssc(keyPointsSorted, numRetPoints, tolerance, img_1.cols, img_1.rows);
   
   KeyPoint::convert(sscKP, points1, vector<int>());
-  cout << "The number of new detected points" << points1.size() << "\n";
+  //cout << "The number of new detected points" << points1.size() << "\n";
 
   //***********************************************************************************
   vector<pair<int, pair<int, Point2f>>> points1_map_tmp;
@@ -529,25 +529,16 @@ struct SnavelyReprojectionError_Local
     int number_of_3d_points = 0;
 
     int count = 0;
-    //cout<<"index of BA_2d_points: "<<j<<"\n";
-    for (int i = 0; i < number_of_3d_points_eig.size(); i++)
-    {
-      number_of_3d_points += number_of_3d_points_eig[i];
-      if (j < number_of_3d_points)
-      {
-        count = i;
-        break;
-      }
-    }
+    
 
-    const T theta = sqrt(rvec_eig[3 * count] * rvec_eig[3 * count] + rvec_eig[3 * count + 1] * rvec_eig[3 * count + 1] + rvec_eig[3 * count + 2] * rvec_eig[3 * count + 2]);
-    const T tvec_eig_0 = tvec_eig[3 * count];
-    const T tvec_eig_1 = tvec_eig[3 * count + 1];
-    const T tvec_eig_2 = tvec_eig[3 * count + 2];
+    const T theta = sqrt(rvec_eig[0] * rvec_eig[0] + rvec_eig[1] * rvec_eig[1] + rvec_eig[2] * rvec_eig[2]);
+    const T tvec_eig_0 = tvec_eig[0];
+    const T tvec_eig_1 = tvec_eig[1];
+    const T tvec_eig_2 = tvec_eig[2];
 
-    const T w1 = rvec_eig[3 * count] / theta;
-    const T w2 = rvec_eig[3 * count + 1] / theta;
-    const T w3 = rvec_eig[3 * count + 2] / theta;
+    const T w1 = rvec_eig[0] / theta;
+    const T w2 = rvec_eig[1] / theta;
+    const T w3 = rvec_eig[2] / theta;
 
     const T cos = ceres::cos(theta);
     const T sin = ceres::sin(theta);
@@ -1017,7 +1008,7 @@ void testDatabase(const vector<vector<cv::Mat>> &features, OrbDatabase &db, bool
       {
         //cout << "Searching for Image " << i<<" "<<"Best search Id and Score: "<<entry_id<<" "<<score<<"\n";
 
-        if ( (score > 0.14)&&(i==features.size()-1))
+        if ( (score > 0.2)&&(i==features.size()-1))
         {
           cout << "loop detected!!"<< "\n";
           cout << "Score: "<<score << "\n";
