@@ -17,15 +17,15 @@
 #define parallax_def 0
 #define max_distance 1500
 #define loop_max_corners 2000
-#define thre_score 0.16
+#define thre_score 0.15
 // const double focal = 718.8560; //00-02
 //     const cv::Point2d pp(607.1928, 185.2157);
     // const double focal = 721.5377; //03
     // const cv::Point2d pp(609.5593, 172.854);
     const double focal = 707.0912; //04-12
     const cv::Point2d pp(601.8873, 183.1104);
-const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/05/image_0/%06d.png";
-string path_to_pose = "/home/gleefe/Downloads/dataset/poses/05.txt";
+const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/07/image_0/%06d.png";
+string path_to_pose = "/home/gleefe/Downloads/dataset/poses/07.txt";
 
 
 using namespace std;
@@ -1889,8 +1889,10 @@ int repro_sum=0;
           }
         }
         
-        vector<KeyPoint> prev_good_keypoints;
+        
         //find loop constraint
+        vector<Point3d> prev_good_3d_points;
+        vector<DMatch> prev_curr_good_matches;
           {
             cout<<"find loop constraint"<<"\n";
           int prev_prev_numFrame = numFrame_vec.at(keyframe_prev-1);
@@ -1984,22 +1986,14 @@ int repro_sum=0;
             }
           prev_good_matches = goodMatches;
           Mat prev_good_desc_tmp(goodMatches.size(),32,CV_8U);
-          // cout<<"prev_good_desc_tmp size: "<<prev_good_desc_tmp.size()<<"\n";
-          // cout<<"prev_desc_size: "<<prev_desc.size()<<"\n";
-          // cout<<"goodMatches size: "<<goodMatches.size()<<"\n";
-          
-          //cout<<"good desc"<<"\n";
-          for (int i=0;i<goodMatches.size();i++){
-            prev_good_desc_tmp.row(i)=prev_desc.row(goodMatches[i].trainIdx);
-            prev_good_keypoints.push_back(prev_keypoints[goodMatches[i].trainIdx]);
-          }
-          prev_good_desc = prev_good_desc_tmp;
           
           
-          Mat img_match;
-          drawMatches(prev_prev_image, prev_prev_keypoints, prev_image, prev_keypoints, prev_good_matches, img_match);
-          imshow("Matches", img_match);
-          waitKey();
+          
+          
+          // Mat img_match;
+          // drawMatches(prev_prev_image, prev_prev_keypoints, prev_image, prev_keypoints, prev_good_matches, img_match);
+          // imshow("Matches", img_match);
+          // waitKey();
           
           }
           
@@ -2135,13 +2129,14 @@ int repro_sum=0;
                 }
             }
           }
-          
+          prev_good_3d_points = corr_3d_point_tmp;
+          prev_curr_good_matches = curr_good_matches;
           //cout<<"tri goodMatches size: "<<curr_good_matches.size()<<"\n";
 
-          Mat img_match;
-          drawMatches(prev_prev_image, prev_keypoints, prev_image, keypoints_curr, curr_good_matches, img_match);
-          imshow("Matches", img_match);
-          waitKey();
+          // Mat img_match;
+          // drawMatches(prev_prev_image, prev_keypoints, prev_image, keypoints_curr, curr_good_matches, img_match);
+          // imshow("Matches", img_match);
+          // waitKey();
 
 
           }
@@ -2261,42 +2256,175 @@ int repro_sum=0;
               number_of_3d_points_loop_tmp.push_back(number_of_3d_points_loop[i]);
               
             }
-            // cout<<"number_of_3d_points_loop size: "<<number_of_3d_points_loop.size()<<"\n";
-            // cout<<"number of 3d points loop tmp size: "<<number_of_3d_points_loop_tmp.size()<<"\n";
-
-          
-          //relative scale by orb matching
-          //cout<<"relative scale by matching"<<"\n";
+           
           double rel_scale=1;
           {
             cout<<"find relative scale by orb "<<"\n";
-          double scale;
+          
         
           
+
+          vector<KeyPoint> prev_prev_keypoints;
+          vector<KeyPoint> prev_keypoints;
+          
+          int index_prev=0;
+          for (int i=0;i<keyframe_curr;i++){
+            index_prev+=keypoints_number_loop[i];
+          }
+
+          for (int i=index_prev-keypoints_number_loop[keyframe_curr-1];i<index_prev;i++){
+              prev_prev_keypoints.push_back(keypoints_loop[i]);
+          }
+
+            for (int i=index_prev;i<index_prev+keypoints_number_loop[keyframe_curr];i++){
+              prev_keypoints.push_back(keypoints_loop[i]);
+            }
+      
+          
+            Mat prev_desc;
+            Mat prev_prev_desc;
+
+          
+            prev_desc = desc_loop[keyframe_curr];
+            prev_prev_desc = desc_loop[keyframe_curr-1];
+          
+          
+          vector<DMatch> prev_good_matches;
+          Mat prev_good_desc;
+          {
+          BFMatcher matcher(NORM_HAMMING,true);
+          vector<DMatch> matches;
+          matcher.match(prev_prev_desc,prev_desc,matches);
+
+          vector<Point2f> points1_ess;
+          vector<Point2f> points2_ess;
+
+          for (int i=0;i<matches.size();i++){
+            points1_ess.push_back(prev_prev_keypoints[matches[i].queryIdx].pt);
+            points2_ess.push_back(prev_keypoints[matches[i].trainIdx].pt);
+          }
+
+          //cout<<"essential"<<"\n";
+          E = findEssentialMat(points2_ess, points1_ess, focal, pp, RANSAC, 0.999, 1.0, mask);
+
+
+          //cout<<"match end"<<"\n";
+          double minDist,maxDist;
+          minDist=maxDist=matches[0].distance;
+          for (int i=1;i<matches.size();i++){
+          double dist = matches[i].distance;
+          if (dist<minDist) minDist=dist;
+          if (dist>maxDist) maxDist=dist;
+          }
+          vector<DMatch> goodMatches;
+          double fTh= 16.0*minDist;
+          for (int i=0;i<matches.size();i++){
+            if (matches[i].distance <=max(fTh,0.02)){
+              
+             
+              if (mask.at<bool>(i)==1){
+              goodMatches.push_back(matches[i]);
+              
+              }
+            }
+            }
+          prev_good_matches = goodMatches;
+          
          
+          
+          
+          }
+          
+          // for triangulation
+          vector<Point2f> prev_prev_features;
+          vector<Point2f> prev_features;
+          for(int i=0;i<prev_good_matches.size();i++){
+            prev_prev_features.push_back(prev_prev_keypoints[prev_good_matches[i].queryIdx].pt);
+            prev_features.push_back(prev_keypoints[prev_good_matches[i].trainIdx].pt);
+          }
 
+          
+          Mat rvec_tmp2(3,1,CV_64F);
+          Mat R_solve_tmp;
+          Mat tvec_tmp2(3,1,CV_64F);
+          {
+            rvec_tmp2.at<double>(0) = rvec_vec_loop[keyframe_curr-1].x;
+            tvec_tmp2.at<double>(0) = tvec_vec_loop[keyframe_curr-1].x;
+            rvec_tmp2.at<double>(1) = rvec_vec_loop[keyframe_curr-1].y;
+            tvec_tmp2.at<double>(1) = tvec_vec_loop[keyframe_curr-1].y;
+            rvec_tmp2.at<double>(2) = rvec_vec_loop[keyframe_curr-1].z;
+            tvec_tmp2.at<double>(2) = tvec_vec_loop[keyframe_curr-1].z;
+          }
+          Rodrigues(rvec_tmp2,R_solve_tmp);
 
+          //cout<<"before copyTo"<<"\n";
+          R_solve_tmp.copyTo(Rt0.rowRange(0,3).colRange(0,3));
+          tvec_tmp2.copyTo(Rt0.rowRange(0,3).col(3));
+          
+          
+          {
+            rvec_tmp2.at<double>(0) = rvec_vec_loop[keyframe_curr].x;
+            tvec_tmp2.at<double>(0) = tvec_vec_loop[keyframe_curr].x;
+            rvec_tmp2.at<double>(1) = rvec_vec_loop[keyframe_curr].y;
+            tvec_tmp2.at<double>(1) = tvec_vec_loop[keyframe_curr].y;
+            rvec_tmp2.at<double>(2) = rvec_vec_loop[keyframe_curr].z;
+            tvec_tmp2.at<double>(2) = tvec_vec_loop[keyframe_curr].z;
+          }
+          Rodrigues(rvec_tmp2,R_solve_tmp);
 
+          R_solve_tmp.copyTo(Rt1.rowRange(0,3).colRange(0,3));
+          tvec_tmp2.copyTo(Rt1.rowRange(0,3).col(3));
+          
+          Mat prev_point_3d_homo;
+          vector<Point3d> prev_point_3d;
+          triangulatePoints(Kd*Rt0,Kd*Rt1,prev_prev_features,prev_features,prev_point_3d_homo);
+          
+          for (int i=0;i<prev_point_3d_homo.cols;i++){
+          _p3h = prev_point_3d_homo.col(i); 
+          p3d2 = _p3h/_p3h.at<float>(3);
+          p3d2.convertTo(p3d22, CV_64F);
+          
+          prev_point_3d.push_back( Point3d(p3d22.at<double>(0),p3d22.at<double>(1),p3d22.at<double>(2)));
+          
+          }
+          vector<Point3d> rel_prev_good_3d_points;
+          vector<Point3d> rel_curr_good_3d_points;
+          for (int i=0;i<prev_good_matches.size();i++){
 
+            for (int j=0;j<prev_curr_good_matches.size();j++){
+              if (prev_good_matches[i].trainIdx==prev_curr_good_matches[j].trainIdx){
+                
+                rel_prev_good_3d_points.push_back(prev_good_3d_points[j]);
+                rel_curr_good_3d_points.push_back(prev_point_3d[i]);
+                break;
+              }
+            }
+          }
 
+          vector<double> dist_vec;
+          double scale;
+          for (int i=0;i<rel_prev_good_3d_points.size();i++){
+            
+          double prev_x = (rel_prev_good_3d_points[i].x - t_solve_f_vec[keyframe_prev].x)*(rel_prev_good_3d_points[i].x - t_solve_f_vec[keyframe_prev].x);
+          double prev_y = (rel_prev_good_3d_points[i].y - t_solve_f_vec[keyframe_prev].y)*(rel_prev_good_3d_points[i].y - t_solve_f_vec[keyframe_prev].y);
+          double prev_z = (rel_prev_good_3d_points[i].z - t_solve_f_vec[keyframe_prev].z)*(rel_prev_good_3d_points[i].z - t_solve_f_vec[keyframe_prev].z);
 
+          double curr_x = (rel_curr_good_3d_points[i].x - t_solve_f_vec[keyframe_curr].x)*(rel_curr_good_3d_points[i].x - t_solve_f_vec[keyframe_curr].x);
+          double curr_y = (rel_curr_good_3d_points[i].y - t_solve_f_vec[keyframe_curr].y)*(rel_curr_good_3d_points[i].y - t_solve_f_vec[keyframe_curr].y);
+          double curr_z = (rel_curr_good_3d_points[i].z - t_solve_f_vec[keyframe_curr].z)*(rel_curr_good_3d_points[i].z - t_solve_f_vec[keyframe_curr].z);
 
-
-
+          double curr_dist = sqrt(curr_x+curr_y+curr_z);
+          double prev_dist = sqrt(prev_x+prev_y+prev_z);
 
           scale=curr_dist/prev_dist;
-          
+          dist_vec.push_back(scale);
 
-          
+          }  
 
-
-
-
-         
-          rel_scale=dist_vec.at(goodMatches.size()/2);
-          cout<<"rel good Matches: "<<goodMatches.size()<<"\n";
+          rel_scale=dist_vec.at(dist_vec.size()/2);
+          cout<<"rel good Matches: "<<rel_prev_good_3d_points.size()<<"\n";
           cout<<"rel scale: "<<rel_scale<<"\n";
-          
+          //waitKey();
           }
 
 
