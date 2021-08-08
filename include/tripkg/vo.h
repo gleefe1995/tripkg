@@ -66,7 +66,8 @@ using namespace std;
 using namespace cv;
 using namespace DBoW2;
 const int NIMAGES = 1101;
-Ptr<ORB> detector = ORB::create(10000);
+Ptr<ORB> detector = ORB::create();
+
 void loadFeatures(vector<vector<cv::Mat>> &features, const char *path_to_image);
 void changeStructure(const cv::Mat &plain, vector<cv::Mat> &out);
 void testVocCreation(const vector<vector<cv::Mat>> &features);
@@ -246,6 +247,47 @@ void featureDetection(Mat img_1, vector<Point2f> &points1, vector<pair<int, pair
 
   keyframe_number++;
 }
+
+void loopfeatureDetection(Mat img_1, vector<KeyPoint> &keypoints, Mat &desc, int MAX_CORNERS)
+{
+  
+  vector<KeyPoint> keyPoints;
+  int fast_threshold = 20;
+  bool nonmaxSuppression = true;
+  FAST(img_1, keyPoints, fast_threshold, nonmaxSuppression);
+  Mat mask;
+  
+
+  
+
+  int numRetPoints = MAX_CORNERS; //choose exact number of return points
+  //float percentage = 0.1; //or choose percentage of points to be return
+  //int numRetPoints = (int)keyPoints.size()*percentage;
+
+  float tolerance = 0.1; // tolerance of the number of return points
+
+  //Sorting keypoints by deacreasing order of strength
+  vector<float> responseVector;
+  for (unsigned int i = 0; i < keyPoints.size(); i++)
+    responseVector.push_back(keyPoints[i].response);
+  vector<int> Indx(responseVector.size());
+  std::iota(std::begin(Indx), std::end(Indx), 0);
+  cv::sortIdx(responseVector, Indx, CV_SORT_DESCENDING);
+  vector<cv::KeyPoint> keyPointsSorted;
+  for (unsigned int i = 0; i < keyPoints.size(); i++)
+    keyPointsSorted.push_back(keyPoints[Indx[i]]);
+
+  vector<cv::KeyPoint> sscKP = ssc(keyPointsSorted, numRetPoints, tolerance, img_1.cols, img_1.rows);
+  
+  keypoints = sscKP;
+
+  detector->compute(img_1,keypoints,desc);
+  
+
+}
+
+
+
 
 // void featureDetection(Mat img_1, vector<Point2f>& points1, vector<pair<int,Point2f>>& points1_map)	{
 //   int minHessian = 1500;
@@ -949,9 +991,9 @@ void testVocCreation(const vector<vector<cv::Mat>> &features)
 
 // ----------------------------------------------------------------------------
 
-void testDatabase(const vector<vector<cv::Mat>> &features, OrbDatabase &db, bool &Isloopdetected, int &keyframe_prev_id, int &keyframe_curr_id)
+void testDatabase(const vector<vector<cv::Mat>> &features, OrbDatabase &db, bool &Isloopdetected, int &keyframe_prev_id, int &keyframe_curr_id, double thre_score)
 {
-  cout << "Creating a small database..." << endl;
+  //cout << "Creating a small database..." << endl;
 
   // load the vocabulary from disk
   // OrbVocabulary voc("/home/gleefe/catkin_ws/small_voc.yml.gz");
@@ -969,13 +1011,13 @@ void testDatabase(const vector<vector<cv::Mat>> &features, OrbDatabase &db, bool
   //   db.add(features[i]);
   // }
   db.add(features.back());
-  cout << "... done!" << endl;
+  //cout << "... done!" << endl;
 
-  cout << "Database information: " << endl
-       << db << endl;
+  //cout << "Database information: " << endl
+       //<< db << endl;
 
   // and query the database
-  cout << "Querying the database: " << endl;
+  //cout << "Querying the database: " << endl;
 
   QueryResults ret2;
   for (int i = 0; i < features.size(); i++)
@@ -1008,7 +1050,7 @@ void testDatabase(const vector<vector<cv::Mat>> &features, OrbDatabase &db, bool
       {
         //cout << "Searching for Image " << i<<" "<<"Best search Id and Score: "<<entry_id<<" "<<score<<"\n";
 
-        if ( (score > 0.2)&&(i==features.size()-1))
+        if ( (score > thre_score)&&(i==features.size()-1))
         {
           cout << "loop detected!!"<< "\n";
           cout << "Score: "<<score << "\n";

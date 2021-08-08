@@ -51,7 +51,7 @@ Mat image1,image2;
 Mat dst;
     cvtColor(image1_c, image1, COLOR_BGR2GRAY);
     cvtColor(image2_c, image2, COLOR_BGR2GRAY);
-  vector<Vec4f> lines_std;
+  
 namedWindow("dst",WINDOW_AUTOSIZE);
   
  

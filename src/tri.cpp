@@ -13,17 +13,19 @@
 #define loopclosing 1
 #define inlier_ratio_def 0.7
 #define min_keyframe 5
-#define MAX_IMAGE_NUMBER 1101
-#define parallax_def 10
-#define max_distance 150
-const double focal = 718.8560; //00-02
-    const cv::Point2d pp(607.1928, 185.2157);
+#define MAX_IMAGE_NUMBER 5000
+#define parallax_def 0
+#define max_distance 1500
+#define loop_max_corners 2000
+#define thre_score 0.16
+// const double focal = 718.8560; //00-02
+//     const cv::Point2d pp(607.1928, 185.2157);
     // const double focal = 721.5377; //03
     // const cv::Point2d pp(609.5593, 172.854);
-    // const double focal = 707.0912; //04-12
-    // const cv::Point2d pp(601.8873, 183.1104);
-const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/00/image_0/%06d.png";
-string path_to_pose = "/home/gleefe/Downloads/dataset/poses/00.txt";
+    const double focal = 707.0912; //04-12
+    const cv::Point2d pp(601.8873, 183.1104);
+const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/05/image_0/%06d.png";
+string path_to_pose = "/home/gleefe/Downloads/dataset/poses/05.txt";
 
 
 using namespace std;
@@ -55,7 +57,10 @@ bool compare_point2 (pair<int,Point3d> a,
 int main(int argc, char **argv){
     g2o_type_VertexSE3();
     google::InitGoogleLogging(argv[0]);
-    Ptr<Feature2D> detector = ORB::create();
+    //Ptr<Feature2D> detector = ORB::create();
+    Ptr<ORB> detector = ORB::create();
+    //Ptr<Feature2D> detector_const = ORB::create(3000);
+    Ptr<ORB> detector_const = ORB::create(4000);
     //ros
     ros::init(argc, argv, "tri");
     ros::NodeHandle n;
@@ -64,7 +69,7 @@ int main(int argc, char **argv){
     ros::Publisher gt_traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("gt_traj", 1);
     ros::Publisher tracking_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("tracking", 1);
     ros::Publisher keyframe_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("keyframe", 1);
-    ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 1);
+    //ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 1);
     
     //image
     image_transport::ImageTransport it(n);
@@ -328,19 +333,33 @@ traj_pub.publish(msg2);
 
   int once_loop_detected=0;
 
+
+  vector<KeyPoint> keypoints_loop;
+  vector<int> keypoints_number_loop;
   vector<KeyPoint> keypoints_tmp;
-      
+  vector<Mat> desc_loop;
+
       Mat descriptor_tmp;
       // KeyPoint::convert( prevFeatures, keypoints_1);
       //detector->compute(currImage,keypoints_1,descriptor_1);
       Mat mask_tmp;
-      detector->detectAndCompute(prevImage, mask_tmp, keypoints_tmp, descriptor_tmp);
       
+      
+      //loopfeatureDetection(image1,keypoints_tmp,descriptor_tmp,loop_max_corners);
+      detector_const->detectAndCompute(image1, mask_tmp, keypoints_tmp, descriptor_tmp);
+      for (int i=0;i<keypoints_tmp.size();i++){
+        keypoints_loop.push_back(keypoints_tmp[i]);
+      }
+      desc_loop.push_back(descriptor_tmp);
+      keypoints_number_loop.push_back(keypoints_tmp.size());
+
+      detector->detectAndCompute(image1, mask_tmp, keypoints_tmp, descriptor_tmp);
        features.push_back(vector<cv::Mat >());
       changeStructure(descriptor_tmp, features.back());
       
+      
       QueryResults ret;
-      testDatabase(features,db,Isloopdetected,keyframe_prev,keyframe_curr);
+      testDatabase(features,db,Isloopdetected,keyframe_prev,keyframe_curr,thre_score);
 
 t_solve_f_vec.push_back(Point3d(0,0,0));
       
@@ -679,13 +698,24 @@ if (prevFeatures.size() < 200)	{
       // KeyPoint::convert( prevFeatures, keypoints_1);
       //detector->compute(currImage,keypoints_1,descriptor_1);
       Mat mask_tmp;
-      detector->detectAndCompute(currImage, mask_tmp, keypoints_tmp, descriptor_tmp);
+      //detector->detectAndCompute(currImage, mask_tmp, keypoints_tmp, descriptor_tmp);
       
+      //loopfeatureDetection(currImage,keypoints_tmp,descriptor_tmp,loop_max_corners);
+      detector_const->detectAndCompute(currImage, mask_tmp, keypoints_tmp, descriptor_tmp);
+
+      for (int i=0;i<keypoints_tmp.size();i++){
+        keypoints_loop.push_back(keypoints_tmp[i]);
+      }
+      desc_loop.push_back(descriptor_tmp);
+      keypoints_number_loop.push_back(keypoints_tmp.size());
+
+
+      detector->detectAndCompute(currImage, mask_tmp, keypoints_tmp, descriptor_tmp);
        features.push_back(vector<cv::Mat >());
       changeStructure(descriptor_tmp, features.back());
       
       QueryResults ret;
-      testDatabase(features,db,Isloopdetected,keyframe_prev,keyframe_curr);
+      testDatabase(features,db,Isloopdetected,keyframe_prev,keyframe_curr,thre_score);
 
 t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<double>(2)));
       
@@ -1411,8 +1441,8 @@ vector<pair<int,pair<int,Point3d>>> point_3d_map_tmp_tmp=point_3d_map_tmp_tmp2;
 
  
   //imshow( "Road facing camera", currImage_c );
-  image_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", currImage_c).toImageMsg();
-    image_pub.publish(image_msg);
+  // image_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", currImage_c).toImageMsg();
+  //   image_pub.publish(image_msg);
   // waitKey(1000);
   point_3d_map.erase(point_3d_map.begin(),point_3d_map.begin()+prevFeatures_size);
   prevFeatures.erase(prevFeatures.begin(),prevFeatures.begin()+prevFeatures_size);
@@ -1493,7 +1523,7 @@ numFrame_prev=numFrame-1;
 #if (local_ba>0)
 if (number_of_3d_points.size()>=4){
 
-  cout<<number_of_3d_points.size()<<"\n";
+  //cout<<number_of_3d_points.size()<<"\n";
 
   cout<<"local BA start"<<"\n";
   //cout<<"before local ba tvec: "<<tvec.at<double>(0)<<" "<<tvec.at<double>(1)<<" "<<tvec.at<double>(2)<<"\n";
@@ -1518,14 +1548,14 @@ if (number_of_3d_points.size()>=4){
     Eigen::MatrixXd BA_3d_points_eig(3,BA_3d_points_map_tmp.size());
     Eigen::VectorXi number_of_3d_points_eig(number_of_3d_points.size());
     
-    int half_3d_points=0;
-    for (int i=0;i<rvec_eig_local_size;i++){
-      number_of_3d_points_eig[i]=number_of_3d_points[i];
-      //cout<<number_of_3d_points_eig[i]<<"\n";
-      if (i<rvec_eig_local_size/2){
-        half_3d_points+=number_of_3d_points_eig[i];
-      }
-    }
+    // int half_3d_points=0;
+    // for (int i=0;i<rvec_eig_local_size;i++){
+    //   number_of_3d_points_eig[i]=number_of_3d_points[i];
+    //   //cout<<number_of_3d_points_eig[i]<<"\n";
+    //   if (i<rvec_eig_local_size/2){
+    //     half_3d_points+=number_of_3d_points_eig[i];
+    //   }
+    // }
     
 
     for (int i=0;i<BA_3d_points_map_tmp.size();i++){
@@ -1753,13 +1783,25 @@ int repro_sum=0;
       // KeyPoint::convert( prevFeatures, keypoints_1);
       //detector->compute(currImage,keypoints_1,descriptor_1);
       Mat mask2;
-      detector->detectAndCompute(currImage, mask2, keypoints_1, descriptor_1);
+      Mat descriptor_curr;
       
+      //loopfeatureDetection(currImage,keypoints_1,descriptor_1,loop_max_corners);
+      detector_const->detectAndCompute(currImage, mask2, keypoints_1, descriptor_curr);
+      for (int i=0;i<keypoints_1.size();i++){
+        keypoints_loop.push_back(keypoints_1[i]);
+      }
+      desc_loop.push_back(descriptor_curr);
+      keypoints_number_loop.push_back(keypoints_1.size());
+
+      vector<KeyPoint> keypoints_curr = keypoints_1;
+      
+
+      detector->detectAndCompute(currImage, mask2, keypoints_1, descriptor_1);
        features.push_back(vector<cv::Mat >());
       changeStructure(descriptor_1, features.back());
       
       QueryResults ret;
-      testDatabase(features,db,Isloopdetected,keyframe_prev,keyframe_curr);
+      testDatabase(features,db,Isloopdetected,keyframe_prev,keyframe_curr,thre_score);
       // &&once_loop_detected==0
 
       if ((features.size()-prev_traj_num)>20){
@@ -1769,16 +1811,16 @@ int repro_sum=0;
       if (once_loop_detected==1){
         Isloopdetected=0;
       }
-
-      if (Isloopdetected&&(once_loop_detected==0)){
+      //&&(keyframe_prev!=0)
+      if (Isloopdetected&&(once_loop_detected==0)&&(keyframe_prev!=0)){
         vector<g2o::SE3Quat> gt_poses;
         
-        // cout<<"loop closing start"<<"\n";
-        // cout<<"keyframe_prev id: "<<keyframe_prev<<"\n";
-        // cout<<"keyframe_curr id: "<<keyframe_curr<<"\n";
-        // cout<<"t_solve_f_vec size: "<<t_solve_f_vec.size()<<"\n";
-        // cout<<"quat_vec size: "<<quat_vec.size()<<"\n";
-        // cout<<"BA_3d_points_map_loop size: "<<BA_3d_points_map_loop.size()<<"\n";
+        cout<<"loop closing start"<<"\n";
+        cout<<"keyframe_prev id: "<<keyframe_prev<<"\n";
+        cout<<"keyframe_curr id: "<<keyframe_curr<<"\n";
+        cout<<"t_solve_f_vec size: "<<t_solve_f_vec.size()<<"\n";
+        cout<<"quat_vec size: "<<quat_vec.size()<<"\n";
+        cout<<"BA_3d_points_map_loop size: "<<BA_3d_points_map_loop.size()<<"\n";
 
         loop_keyframe_num.push_back(keyframe_prev);
         loop_keyframe_num.push_back(keyframe_curr);
@@ -1812,7 +1854,7 @@ int repro_sum=0;
           cameraOffset->setId(0);
           optimizer_sim3.addParameter(cameraOffset);
           optimizer_sim3.setAlgorithm(solver);
-          optimizer_sim3.setVerbose(true);
+          optimizer_sim3.setVerbose(false);
         //first, set fixed vertex
         //cout<<"first, set fixed vertex"<<"\n";
         {
@@ -1847,36 +1889,215 @@ int repro_sum=0;
           }
         }
         
+        vector<KeyPoint> prev_good_keypoints;
         //find loop constraint
           {
-          Ptr<Feature2D> detector_loop = ORB::create(4000);
+            cout<<"find loop constraint"<<"\n";
+          int prev_prev_numFrame = numFrame_vec.at(keyframe_prev-1);
           int prev_numFrame = numFrame_vec.at(keyframe_prev);
-          int curr_numFrame = numFrame_vec.at(keyframe_curr);
           
-          sprintf(filename1, path_to_image, prev_numFrame);
-          sprintf(filename2, path_to_image, curr_numFrame);
+          // KeyPoint::convert( prevFeatures, keypoints_1);
+
+          sprintf(filename1, path_to_image, prev_prev_numFrame);
+          sprintf(filename2, path_to_image, prev_numFrame);
           //cout<<"load image"<<"\n";
-          Mat prev_image_c = imread(filename1);
-          Mat curr_image_c = imread(filename2);
+          Mat prev_prev_image_c = imread(filename1);
+          Mat prev_image_c = imread(filename2);
 
+          Mat prev_prev_image;
           Mat prev_image;
-          Mat curr_image;
 
+          cvtColor(prev_prev_image_c, prev_prev_image, COLOR_BGR2GRAY);
           cvtColor(prev_image_c, prev_image, COLOR_BGR2GRAY);
-          cvtColor(curr_image_c, curr_image, COLOR_BGR2GRAY);
-         
+
+
+          vector<KeyPoint> prev_prev_keypoints;
           vector<KeyPoint> prev_keypoints;
-          vector<KeyPoint> curr_keypoints;
           
-          Mat prev_desc;
-          Mat curr_desc;
-          detector_loop->detectAndCompute(prev_image,noArray(),prev_keypoints,prev_desc);
-          detector_loop->detectAndCompute(curr_image,noArray(),curr_keypoints,curr_desc);
+          int index_prev=0;
+          for (int i=0;i<keyframe_prev;i++){
+            index_prev+=keypoints_number_loop[i];
+          }
+
+          for (int i=index_prev-keypoints_number_loop[keyframe_prev-1];i<index_prev;i++){
+              prev_prev_keypoints.push_back(keypoints_loop[i]);
+          }
+
+            for (int i=index_prev;i<index_prev+keypoints_number_loop[keyframe_prev];i++){
+              prev_keypoints.push_back(keypoints_loop[i]);
+            }
+          //   cout<<keypoints_loop.size()<<"\n";
+          // cout<<prev_prev_keypoints.size()<<"\n";
+          // cout<<prev_keypoints.size()<<"\n";
+          
+            Mat prev_desc;
+            Mat prev_prev_desc;
+
+          
+            prev_desc = desc_loop[keyframe_prev];
+            prev_prev_desc = desc_loop[keyframe_prev-1];
+          
           
           //cout<<"BFMatcher"<<"\n";
-          BFMatcher matcher(NORM_HAMMING);
+          vector<DMatch> prev_good_matches;
+          Mat prev_good_desc;
+          {
+          BFMatcher matcher(NORM_HAMMING,true);
           vector<DMatch> matches;
-          matcher.match(prev_desc,curr_desc,matches);
+          matcher.match(prev_prev_desc,prev_desc,matches);
+
+          vector<Point2f> points1_ess;
+          vector<Point2f> points2_ess;
+
+          for (int i=0;i<matches.size();i++){
+            points1_ess.push_back(prev_prev_keypoints[matches[i].queryIdx].pt);
+            points2_ess.push_back(prev_keypoints[matches[i].trainIdx].pt);
+          }
+
+          //cout<<"essential"<<"\n";
+          E = findEssentialMat(points2_ess, points1_ess, focal, pp, RANSAC, 0.999, 1.0, mask);
+
+
+          //cout<<"match end"<<"\n";
+          double minDist,maxDist;
+          minDist=maxDist=matches[0].distance;
+          for (int i=1;i<matches.size();i++){
+          double dist = matches[i].distance;
+          if (dist<minDist) minDist=dist;
+          if (dist>maxDist) maxDist=dist;
+          }
+          vector<DMatch> goodMatches;
+          double fTh= 16.0*minDist;
+          for (int i=0;i<matches.size();i++){
+            if (matches[i].distance <=max(fTh,0.02)){
+              
+              Point2f pt1 = prev_prev_keypoints[matches[i].queryIdx].pt;
+              Point2f pt2 = prev_keypoints[matches[i].trainIdx].pt;
+              float dist_tmp = sqrt ( (pt1.x-pt2.x)*(pt1.x-pt2.x)+(pt1.y-pt2.y)*(pt1.y-pt2.y));
+
+              //if (dist_tmp<30){
+              if (mask.at<bool>(i)==1){
+              goodMatches.push_back(matches[i]);
+              //}
+              }
+            }
+            }
+          prev_good_matches = goodMatches;
+          Mat prev_good_desc_tmp(goodMatches.size(),32,CV_8U);
+          // cout<<"prev_good_desc_tmp size: "<<prev_good_desc_tmp.size()<<"\n";
+          // cout<<"prev_desc_size: "<<prev_desc.size()<<"\n";
+          // cout<<"goodMatches size: "<<goodMatches.size()<<"\n";
+          
+          //cout<<"good desc"<<"\n";
+          for (int i=0;i<goodMatches.size();i++){
+            prev_good_desc_tmp.row(i)=prev_desc.row(goodMatches[i].trainIdx);
+            prev_good_keypoints.push_back(prev_keypoints[goodMatches[i].trainIdx]);
+          }
+          prev_good_desc = prev_good_desc_tmp;
+          
+          
+          Mat img_match;
+          drawMatches(prev_prev_image, prev_prev_keypoints, prev_image, prev_keypoints, prev_good_matches, img_match);
+          imshow("Matches", img_match);
+          waitKey();
+          
+          }
+          
+          // for triangulation
+          vector<Point2f> prev_prev_features;
+          vector<Point2f> prev_features;
+          for(int i=0;i<prev_good_matches.size();i++){
+            prev_prev_features.push_back(prev_prev_keypoints[prev_good_matches[i].queryIdx].pt);
+            prev_features.push_back(prev_keypoints[prev_good_matches[i].trainIdx].pt);
+          }
+
+          
+          Mat rvec_tmp2(3,1,CV_64F);
+          Mat R_solve_tmp;
+          Mat tvec_tmp2(3,1,CV_64F);
+          {
+            rvec_tmp2.at<double>(0) = rvec_vec_loop[keyframe_prev-1].x;
+            tvec_tmp2.at<double>(0) = tvec_vec_loop[keyframe_prev-1].x;
+            rvec_tmp2.at<double>(1) = rvec_vec_loop[keyframe_prev-1].y;
+            tvec_tmp2.at<double>(1) = tvec_vec_loop[keyframe_prev-1].y;
+            rvec_tmp2.at<double>(2) = rvec_vec_loop[keyframe_prev-1].z;
+            tvec_tmp2.at<double>(2) = tvec_vec_loop[keyframe_prev-1].z;
+          }
+          Rodrigues(rvec_tmp2,R_solve_tmp);
+
+          //cout<<"before copyTo"<<"\n";
+          R_solve_tmp.copyTo(Rt0.rowRange(0,3).colRange(0,3));
+          tvec_tmp2.copyTo(Rt0.rowRange(0,3).col(3));
+          
+          
+          {
+            rvec_tmp2.at<double>(0) = rvec_vec_loop[keyframe_prev].x;
+            tvec_tmp2.at<double>(0) = tvec_vec_loop[keyframe_prev].x;
+            rvec_tmp2.at<double>(1) = rvec_vec_loop[keyframe_prev].y;
+            tvec_tmp2.at<double>(1) = tvec_vec_loop[keyframe_prev].y;
+            rvec_tmp2.at<double>(2) = rvec_vec_loop[keyframe_prev].z;
+            tvec_tmp2.at<double>(2) = tvec_vec_loop[keyframe_prev].z;
+          }
+          Rodrigues(rvec_tmp2,R_solve_tmp);
+
+          R_solve_tmp.copyTo(Rt1.rowRange(0,3).colRange(0,3));
+          tvec_tmp2.copyTo(Rt1.rowRange(0,3).col(3));
+          //cout<<"triangulate!"<<"\n";
+          //cout<<Rt0<<"\n";
+          //cout<<Rt1<<"\n";
+          Mat prev_point_3d_homo;
+          vector<Point3d> prev_point_3d;
+          triangulatePoints(Kd*Rt0,Kd*Rt1,prev_prev_features,prev_features,prev_point_3d_homo);
+          
+          for (int i=0;i<prev_point_3d_homo.cols;i++){
+          _p3h = prev_point_3d_homo.col(i); 
+          p3d2 = _p3h/_p3h.at<float>(3);
+          p3d2.convertTo(p3d22, CV_64F);
+          
+          prev_point_3d.push_back( Point3d(p3d22.at<double>(0),p3d22.at<double>(1),p3d22.at<double>(2)));
+          
+          }
+
+          //for p3p
+          //cout<<"for p3p"<<"\n";
+          vector<Point3d> corr_3d_point_tmp;
+          vector<Point2d> corr_2d_point_tmp;
+          {
+            int prev_prev_numFrame = numFrame_vec.at(keyframe_prev);
+          int prev_numFrame = numFrame_vec.at(keyframe_curr);
+          
+          // KeyPoint::convert( prevFeatures, keypoints_1);
+
+          sprintf(filename1, path_to_image, prev_prev_numFrame);
+          sprintf(filename2, path_to_image, prev_numFrame);
+          //cout<<"load image"<<"\n";
+          Mat prev_prev_image_c = imread(filename1);
+          Mat prev_image_c = imread(filename2);
+
+          Mat prev_prev_image;
+          Mat prev_image;
+
+          cvtColor(prev_prev_image_c, prev_prev_image, COLOR_BGR2GRAY);
+          cvtColor(prev_image_c, prev_image, COLOR_BGR2GRAY);
+
+
+
+          BFMatcher matcher(NORM_HAMMING,true);
+          vector<DMatch> matches;
+          matcher.match(prev_desc,descriptor_curr,matches);
+
+          
+          vector<Point2f> points1_ess;
+          vector<Point2f> points2_ess;
+
+          for (int i=0;i<matches.size();i++){
+            points1_ess.push_back(prev_keypoints[matches[i].queryIdx].pt);
+            points2_ess.push_back(keypoints_curr[matches[i].trainIdx].pt);
+          }
+
+          //cout<<"essential"<<"\n";
+          E = findEssentialMat(points2_ess, points1_ess, focal, pp, RANSAC, 0.999, 1.0, mask);
+
 
           double minDist,maxDist;
           minDist=maxDist=matches[0].distance;
@@ -1886,42 +2107,110 @@ int repro_sum=0;
           if (dist>maxDist) maxDist=dist;
           }
           vector<DMatch> goodMatches;
-          double fTh= 4.0*minDist;
+          double fTh= 16.0*minDist;
           for (int i=0;i<matches.size();i++){
-            if (matches[i].distance <=max(fTh,0.02))
-              goodMatches.push_back(matches[i]);
+            if (matches[i].distance <=max(fTh,0.02)){
+              Point2f pt1 = prev_keypoints[matches[i].queryIdx].pt;
+              Point2f pt2 = keypoints_curr[matches[i].trainIdx].pt;
+              float dist_tmp = sqrt ( (pt1.x-pt2.x)*(pt1.x-pt2.x)+(pt1.y-pt2.y)*(pt1.y-pt2.y));
+
+              //if (dist_tmp<50){
+                if ((mask.at<bool>(i)==1)){
+
+                goodMatches.push_back(matches[i]);
+              //}
+                }
             }
-          
-          vector<Point2f> prev_features;
-          vector<Point2f> curr_features;
-          for(int i=0;i<goodMatches.size();i++){
-            prev_features.push_back(prev_keypoints[goodMatches[i].queryIdx].pt);
-            curr_features.push_back(curr_keypoints[goodMatches[i].trainIdx].pt);
+            }
+          vector<DMatch> curr_good_matches;
+          for (int i=0;i<goodMatches.size();i++){
+
+            for (int j=0;j<prev_good_matches.size();j++){
+            
+              if (goodMatches[i].queryIdx==prev_good_matches[j].trainIdx){
+                corr_3d_point_tmp.push_back(prev_point_3d[j]);
+                corr_2d_point_tmp.push_back( Point2d((double)keypoints_curr[goodMatches[i].trainIdx].pt.x,(double)keypoints_curr[goodMatches[i].trainIdx].pt.y));
+                curr_good_matches.push_back(goodMatches[i]);
+                break;
+                }
+            }
           }
-
-          E = findEssentialMat(curr_features, prev_features, focal, pp, RANSAC, 0.999, 1.0, mask);
-          recoverPose(E, curr_features, prev_features, R, t, focal, pp, mask);
-
-         
-
-          Eigen::Vector3d trans;
           
-          trans = Eigen::Vector3d(t.at<double>(0),t.at<double>(1),t.at<double>(2));
+          //cout<<"tri goodMatches size: "<<curr_good_matches.size()<<"\n";
+
+          Mat img_match;
+          drawMatches(prev_prev_image, prev_keypoints, prev_image, keypoints_curr, curr_good_matches, img_match);
+          imshow("Matches", img_match);
+          waitKey();
+
+
+          }
+          
+          
+          solvePnPRansac(corr_3d_point_tmp,corr_2d_point_tmp,Kd,noArray(),rvec_tmp2,tvec_tmp2,false,100,3.0F,0.99,array,SOLVEPNP_P3P);
+
+
+          // cout<<corr_3d_point_tmp.size()<<"\n";
+          // cout<<corr_2d_point_tmp[5]<<"\n";
+          // cout<<array.size()<<"\n";
+          Rodrigues(rvec_tmp2,R_solve_tmp);
+          Mat R_solve_inv_tmp = R_solve_tmp.t();
+          Mat t_solve_f_tmp = -R_solve_inv_tmp * tvec_tmp2;
+          
           
           Eigen::Matrix3d mat_eig;
           for (int i=0;i<3;i++){
-                for(int j=0;j<3;j++){
-                  mat_eig(i,j)=R.at<double>(i,j);
-                }
-              }
+            for(int j=0;j<3;j++){
+              mat_eig(i,j)=R_solve_inv_tmp.at<double>(i,j);
+            }
+          }
           Eigen::Quaterniond quat(mat_eig);
-          trans_vec_loop.push_back(trans);
-          quat_vec_loop.push_back(quat);
-          Mat img_match;
-          drawMatches(prev_image, prev_keypoints, curr_image, curr_keypoints, goodMatches, img_match);
-         
-          imshow("Matches", img_match);
-          waitKey();
+
+          Eigen::Vector3d trans1;
+          trans1[0]=t_solve_f_tmp.at<double>(0);
+          trans1[1]=t_solve_f_tmp.at<double>(1);
+          trans1[2]=t_solve_f_tmp.at<double>(2);
+          g2o::SE3Quat curr_pose_tmp(quat,trans1);
+          
+
+          {
+            rvec_tmp2.at<double>(0) = rvec_vec_loop[keyframe_prev].x;
+            tvec_tmp2.at<double>(0) = tvec_vec_loop[keyframe_prev].x;
+            rvec_tmp2.at<double>(1) = rvec_vec_loop[keyframe_prev].y;
+            tvec_tmp2.at<double>(1) = tvec_vec_loop[keyframe_prev].y;
+            rvec_tmp2.at<double>(2) = rvec_vec_loop[keyframe_prev].z;
+            tvec_tmp2.at<double>(2) = tvec_vec_loop[keyframe_prev].z;
+          }
+          
+          
+          
+          Rodrigues(rvec_tmp2,R_solve_tmp);
+          R_solve_inv_tmp = R_solve_tmp.t();
+          t_solve_f_tmp = -R_solve_inv_tmp * tvec_tmp2;
+          
+          
+          
+          Eigen::Matrix3d mat_eig2;
+          for (int i=0;i<3;i++){
+            for(int j=0;j<3;j++){
+              mat_eig2(i,j)=R_solve_inv_tmp.at<double>(i,j);
+            }
+          }
+          Eigen::Quaterniond quat2(mat_eig2);
+
+          Eigen::Vector3d trans2;
+          trans2[0]=t_solve_f_tmp.at<double>(0);
+          trans2[1]=t_solve_f_tmp.at<double>(1);
+          trans2[2]=t_solve_f_tmp.at<double>(2);
+          g2o::SE3Quat prev_pose_tmp(quat2,trans2);
+          //cout<<prev_pose_tmp.translation()<<"\n";
+          g2o::SE3Quat relpose;
+          relpose = prev_pose_tmp.inverse() * curr_pose_tmp;
+          cout<<relpose.translation()<<"\n";
+          
+          trans_vec_loop.push_back(relpose.translation());
+          quat_vec_loop.push_back(relpose.rotation());
+          
           }
 
 
@@ -1936,14 +2225,12 @@ int repro_sum=0;
           }
           }
         
-        // the last  vertex is same with the keyframe_prev=>Using 2d-2d matching, find relative pose
+        // the last  vertex is same with the keyframe_prev=>Using p3p, find relative pose
           
           for (int i=0;i<loop_keyframe_num.size()/2;i++){
             g2o::SE3Quat pose0(quat_vec_loop[i], trans_vec_loop[i]);
             
             addEdgePosePose(optimizer, loop_keyframe_num[2*i], loop_keyframe_num[2*i+1], pose0);
-
-
           }
         }
         
@@ -1979,101 +2266,37 @@ int repro_sum=0;
 
           
           //relative scale by orb matching
-          //cout<<"relative scale by orb matching"<<"\n";
+          //cout<<"relative scale by matching"<<"\n";
           double rel_scale=1;
           {
+            cout<<"find relative scale by orb "<<"\n";
           double scale;
-          int prev_numFrame = numFrame_vec.at(keyframe_prev);
-          int curr_numFrame = numFrame_vec.at(keyframe_curr);
-          
-          // KeyPoint::convert( prevFeatures, keypoints_1);
-
-          sprintf(filename1, path_to_image, prev_numFrame);
-          sprintf(filename2, path_to_image, curr_numFrame);
-          //cout<<"load image"<<"\n";
-          Mat prev_image_c = imread(filename1);
-          Mat curr_image_c = imread(filename2);
-
-          Mat prev_image;
-          Mat curr_image;
-
-          cvtColor(prev_image_c, prev_image, COLOR_BGR2GRAY);
-          cvtColor(curr_image_c, curr_image, COLOR_BGR2GRAY);
-          int prev_idx=0;
-          for (int i=0;i<keyframe_prev;i++){
-            prev_idx+=number_of_3d_points_loop_tmp[i];
-          }
-          //cout<<prev_idx<<"\n";
-          vector<Point2f> prev_Features;
-          vector<Point3d> prev_3d_points;
-          for (int i=prev_idx;i<prev_idx+number_of_3d_points_loop_tmp[keyframe_prev];i++){
-            prev_Features.push_back(BA_2d_points_map_loop[i].second.second);
-            prev_3d_points.push_back(BA_3d_points_map_loop[i].second.second);
-            //cout<<"prev 3d points: "<<prev_3d_points[i]<<"\n";
-          }
-          vector<KeyPoint> prev_keypoints;
-          vector<KeyPoint> curr_keypoints;
-          
-          KeyPoint::convert( prev_Features, prev_keypoints);
-          KeyPoint::convert( prevFeatures, curr_keypoints);
-
-          Mat prev_desc;
-          Mat curr_desc;
-          detector->compute(prev_image,prev_keypoints,prev_desc);
-          detector->compute(curr_image,curr_keypoints,curr_desc);
-          //cout<<"BFMatcher"<<"\n";
-          BFMatcher matcher(NORM_HAMMING);
-          vector<DMatch> matches;
-          matcher.match(prev_desc,curr_desc,matches);
-
-
-          double minDist,maxDist;
-          minDist=maxDist=matches[0].distance;
-          for (int i=1;i<matches.size();i++){
-          double dist = matches[i].distance;
-          if (dist<minDist) minDist=dist;
-          if (dist>maxDist) maxDist=dist;
-          }
-          vector<DMatch> goodMatches;
-          double fTh= 4.0*minDist;
-          for (int i=0;i<matches.size();i++){
-            if (matches[i].distance <=max(fTh,0.02))
-              goodMatches.push_back(matches[i]);
-            }
-          //cout<<goodMatches.size()<<"\n";
-          
-          // cout<<goodMatches.size()<<"\n";
-          // cout<<matches.size()<<"\n";
-          vector<double> dist_vec;
-          for (int i=0;i<goodMatches.size();i++){
-          int prev_gm_idx = goodMatches[i].queryIdx;
-          int curr_gm_idx = goodMatches[i].trainIdx;
-          
-          double x_prev = (prev_3d_points[prev_gm_idx].x-t_solve_f_vec[keyframe_prev].x);
-          double y_prev = (prev_3d_points[prev_gm_idx].y-t_solve_f_vec[keyframe_prev].y);
-          double z_prev = (prev_3d_points[prev_gm_idx].z-t_solve_f_vec[keyframe_prev].z);
-
-          double prev_dist=sqrt ( x_prev*x_prev + y_prev*y_prev +z_prev*z_prev );
-
-          double x_curr = (point_3d_map[curr_gm_idx].second.second.x-t_solve_f_vec[keyframe_curr].x);
-          double y_curr = (point_3d_map[curr_gm_idx].second.second.y-t_solve_f_vec[keyframe_curr].y);
-          double z_curr = (point_3d_map[curr_gm_idx].second.second.z-t_solve_f_vec[keyframe_curr].z);
-
-          double curr_dist= sqrt( x_curr*x_curr+y_curr*y_curr +z_curr*z_curr );
+        
           
          
+
+
+
+
+
+
+
+
+
+
           scale=curr_dist/prev_dist;
-          dist_vec.push_back(scale);
+          
 
-          }
+          
 
-          sort(dist_vec.begin(),dist_vec.end());
+
+
+
+         
           rel_scale=dist_vec.at(goodMatches.size()/2);
+          cout<<"rel good Matches: "<<goodMatches.size()<<"\n";
           cout<<"rel scale: "<<rel_scale<<"\n";
-          Mat img_match;
-          drawMatches(prev_image, prev_keypoints, curr_image, curr_keypoints, goodMatches, img_match);
-          imshow("Matches", img_match);
-          waitKey();
+          
           }
 
 
@@ -2143,7 +2366,7 @@ int repro_sum=0;
       // msg4->points.clear();
       int number_of_points=0;
       int number_of_points_prev=0;
-      cloud->points.resize(BA_3d_points_map_loop.size());
+      cloud->points.resize(BA_3d_points_map_loop2.size());
 
       vector<Point3d> rvec_vec_loop_tmp=rvec_vec_loop;
       vector<Point3d> tvec_vec_loop_tmp=tvec_vec_loop;
@@ -2154,8 +2377,11 @@ int repro_sum=0;
       vector<Point3d>().swap(tvec_vec_loop);
 
       //plot
+      cout<<"plot"<<"\n";
+      cout<<gt_poses.size()<<"\n";
+
       for (int i=0;i<gt_poses.size();i++){
-         
+         //cout<<"i: "<<i<<"\n";
         //g2o::VertexSE3* vtx = dynamic_cast<g2o::VertexSE3*>(optimizer->vertex(i));
         g2o::VertexSim3Expmap* vtx =
         static_cast<g2o::VertexSim3Expmap*>(optimizer_sim3.vertex(i));
@@ -2306,6 +2532,7 @@ int repro_sum=0;
         trajectory.b=0;
         msg2->points.push_back(trajectory);
       }
+      //cout<<"plot end"<<"\n";
       
         //cout<<"rvec_vec size: "<<rvec_vec.size()<<"\n";
         traj_pub.publish(msg2);
@@ -2379,7 +2606,7 @@ int repro_sum=0;
 //*********************************************************full ba***********************************************************
 { 
   //after loop closing full ba
-  //cout<<"full BA start"<<"\n";
+  cout<<"full BA start"<<"\n";
   //cout<<"before local ba tvec: "<<tvec.at<double>(0)<<" "<<tvec.at<double>(1)<<" "<<tvec.at<double>(2)<<"\n";
 
   int rvec_eig_local_size=rvec_vec_loop.size();
