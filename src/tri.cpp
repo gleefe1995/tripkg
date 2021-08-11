@@ -64,18 +64,19 @@ int main(int argc, char **argv){
     //ros
     ros::init(argc, argv, "tri");
     ros::NodeHandle n;
-    ros::Publisher world_points_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("world_points", 1);
-    ros::Publisher traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("traj", 1);
-    ros::Publisher gt_traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("gt_traj", 1);
-    ros::Publisher tracking_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("tracking", 1);
-    ros::Publisher keyframe_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("keyframe", 1);
+    ros::Publisher world_points_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("world_points", 1000);
+    ros::Publisher traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("traj", 1000);
+    ros::Publisher curr_traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("curr_traj", 1000);
+    ros::Publisher gt_traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("gt_traj", 1000);
+    ros::Publisher tracking_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("tracking", 1000);
+    ros::Publisher keyframe_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("keyframe", 1000);
     //ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 1);
     
     //image
     image_transport::ImageTransport it(n);
-    image_transport::Publisher image_pub = it.advertise("camera/image", 1);
+    image_transport::Publisher image_pub = it.advertise("camera/image", 1000);
     
-    ros::Rate loop_rate(5);
+    ros::Rate loop_rate(10);
     
    //uint32_t shape = visualization_msgs::Marker::ARROW;
    
@@ -109,6 +110,7 @@ int main(int argc, char **argv){
   if ( !image1_c.data || !image2_c.data ) { 
     cout<< " --(!) Error reading images " << std::endl; return -1;
   }
+  if(image1_c.empty()) throw std::runtime_error("unable to open the image");
     
     int feature_number=0;
     
@@ -218,6 +220,11 @@ msg4->header.frame_id = "map";
       msg4->width = cloud2->width;
 
 pcl::PointXYZRGB tracking_points;
+
+
+
+
+
 
 Mat point3d_homo;
       Mat _p3h;
@@ -399,6 +406,7 @@ t_solve_f_vec.push_back(Point3d(0,0,0));
     
       while(ros::ok){
         while (init_check==0){
+          cout<<"frame start"<<"\n";
       sprintf(filename1, path_to_image, numFrame);
 
       Mat currImage_c = imread(filename1);
@@ -471,13 +479,13 @@ t_solve_f_vec.push_back(Point3d(0,0,0));
     int d = -int(gt_z) +800;
       
 
-    circle(traj, Point(c,d),1,CV_RGB(0,0,255),2);
+    //circle(traj, Point(c,d),1,CV_RGB(0,0,255),2);
 
-    circle(traj,Point(x,y),1,CV_RGB(0,255,0),2);
+    //circle(traj,Point(x,y),1,CV_RGB(0,255,0),2);
 
-    rectangle( traj, Point(10, 30), Point(570, 50), CV_RGB(0,0,0), CV_FILLED);
-    sprintf(text, "Coordinates: x = %02fm y = %02fm z = %02fm", t_f.at<double>(0), t_f.at<double>(1), t_f.at<double>(2));
-    putText(traj, text, textOrg, fontFace, fontScale, Scalar::all(255), thickness, 8);
+    //rectangle( traj, Point(10, 30), Point(570, 50), CV_RGB(0,0,0), CV_FILLED);
+    //sprintf(text, "Coordinates: x = %02fm y = %02fm z = %02fm", t_f.at<double>(0), t_f.at<double>(1), t_f.at<double>(2));
+    //putText(traj, text, textOrg, fontFace, fontScale, Scalar::all(255), thickness, 8);
 
     
 
@@ -530,7 +538,7 @@ t_solve_f_vec.push_back(Point3d(0,0,0));
 // marker_pub.publish( marker );
 // waitKey();
 
-    waitKey(1);
+    waitKey(50);
     
 
 
@@ -895,6 +903,29 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
       }
       
 
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_curr_traj(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr msg_curr_traj(new pcl::PointCloud<pcl::PointXYZRGB>);
+    msg_curr_traj->header.frame_id = "map";
+    msg_curr_traj->height = cloud->height;
+    msg_curr_traj->width = cloud->width;
+    
+    cloud_curr_traj->points.resize(1);
+    tracking_points = cloud_curr_traj->points[0];
+    tracking_points.x = t_solve_f.at<double>(0);
+    tracking_points.y = t_solve_f.at<double>(1);
+    tracking_points.z = t_solve_f.at<double>(2);
+    tracking_points.r=255;
+    tracking_points.g=0;
+    tracking_points.b=0;
+    msg_curr_traj->points.push_back(tracking_points);
+
+    curr_traj_pub.publish(msg_curr_traj);
+
+
+
+
+
+
 
     
     // cout<<points2_tmp.size()<<"\n";
@@ -955,8 +986,8 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
     // Eigen::Matrix<double,1,4> corr_3d_point_eig;
     //cout<<"corr_3d_point: "<<corr_3d_point.size()<<"\n";
     
-
-    solvePnPRansac(corr_3d_point,corr_2d_pointd,Kd,noArray(),rvec,tvec,false,100,3.0F,0.99,array,SOLVEPNP_P3P);
+    
+    solvePnPRansac(corr_3d_point,corr_2d_pointd,Kd,noArray(),rvec,tvec,false,100,3.0F,0.99,array,SOLVEPNP_ITERATIVE);
     // cout<<rvec<<"\n";
     // cout<<tvec<<"\n";
     float inlier_ratio=float(array.rows)/float(corr_2d_pointd.size());
@@ -1070,7 +1101,7 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
   options.linear_solver_type = ceres::DENSE_SCHUR;
   options.minimizer_progress_to_stdout = false;
   options.num_threads = 12;
-  options.max_num_iterations=10;
+  options.max_num_iterations=100;
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
   //std::cout << summary.FullReport() << "\n";
@@ -1105,43 +1136,45 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
 
     //diff=0;
 
-    currImage_c = imread(filename);
+    //currImage_c = imread(filename);
     //cout<<corr_3d_point.size()<<"\n";
-    for(int i = 0; i < corr_3d_point.size(); i++) {
+  //   for(int i = 0; i < corr_3d_point.size(); i++) {
       
-      int m = corr_2d_pointd.at(i).x;
-      int n = corr_2d_pointd.at(i).y;
-      circle(currImage_c, Point(m, n) ,2, CV_RGB(0,0,255), 2);
+  //     int m = corr_2d_pointd.at(i).x;
+  //     int n = corr_2d_pointd.at(i).y;
+  //     circle(currImage_c, Point(m, n) ,2, CV_RGB(0,0,255), 2);
       
-      int corr_3d_point_int = corr_3d_point.size();
-      Mat prev_p3hh(4,corr_3d_point_int,CV_64F);
-      // Mat prev_p3d2;
-      // Mat prev_p3d22;
-      Mat prev_p3h;
-      prev_p3h = prev_p3hh.col(i); 
-      // prev_p3d2 = prev_p3h/prev_p3h.at<float>(3);
-      // prev_p3d2.convertTo(prev_p3d22, CV_64F);
-      prev_p3h.at<double>(0)=corr_3d_point.at(i).x;
-      prev_p3h.at<double>(1)=corr_3d_point.at(i).y;
-      prev_p3h.at<double>(2)=corr_3d_point.at(i).z;
-      prev_p3h.at<double>(3)=1;
+  //     int corr_3d_point_int = corr_3d_point.size();
+  //     Mat prev_p3hh(4,corr_3d_point_int,CV_64F);
+  //     // Mat prev_p3d2;
+  //     // Mat prev_p3d22;
+  //     Mat prev_p3h;
+  //     prev_p3h = prev_p3hh.col(i); 
+  //     // prev_p3d2 = prev_p3h/prev_p3h.at<float>(3);
+  //     // prev_p3d2.convertTo(prev_p3d22, CV_64F);
+  //     prev_p3h.at<double>(0)=corr_3d_point.at(i).x;
+  //     prev_p3h.at<double>(1)=corr_3d_point.at(i).y;
+  //     prev_p3h.at<double>(2)=corr_3d_point.at(i).z;
+  //     prev_p3h.at<double>(3)=1;
       
-        three_to_p=Kd*Relative_homo_R*prev_p3h;
-        int c = int(three_to_p.at<double>(0) / three_to_p.at<double>(2));
-        int d = int(three_to_p.at<double>(1) / three_to_p.at<double>(2));
-        circle(currImage_c, Point(c, d) ,2, CV_RGB(0,255,0), 2);
+  //       three_to_p=Kd*Relative_homo_R*prev_p3h;
+  //       int c = int(three_to_p.at<double>(0) / three_to_p.at<double>(2));
+  //       int d = int(three_to_p.at<double>(1) / three_to_p.at<double>(2));
+  //       circle(currImage_c, Point(c, d) ,2, CV_RGB(0,255,0), 2);
       
-      int point_diff_x = (m-c)*(m-c);
-      int point_diff_y = (n-d)*(n-d);
+  //     int point_diff_x = (m-c)*(m-c);
+  //     int point_diff_y = (n-d)*(n-d);
       
       
-      //diff += (sqrt(point_diff_x+point_diff_y));
+  //     //diff += (sqrt(point_diff_x+point_diff_y));
       
-  }
+  // }
   
   image_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", currImage_c).toImageMsg();
     image_pub.publish(image_msg);
     
+    // imshow( "Road facing camera", currImage_c );
+    //   waitKey();
  
   
     
@@ -1441,8 +1474,8 @@ vector<pair<int,pair<int,Point3d>>> point_3d_map_tmp_tmp=point_3d_map_tmp_tmp2;
 
  
   //imshow( "Road facing camera", currImage_c );
-  // image_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", currImage_c).toImageMsg();
-  //   image_pub.publish(image_msg);
+  image_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", currImage_c).toImageMsg();
+    image_pub.publish(image_msg);
   // waitKey(1000);
   point_3d_map.erase(point_3d_map.begin(),point_3d_map.begin()+prevFeatures_size);
   prevFeatures.erase(prevFeatures.begin(),prevFeatures.begin()+prevFeatures_size);
@@ -1521,11 +1554,11 @@ numFrame_prev=numFrame-1;
 
       //***************************************************************************************************local BA***************************************************************************************************************//
 #if (local_ba>0)
-if (number_of_3d_points.size()>=4){
+if (number_of_3d_points.size()>=2){
 
   //cout<<number_of_3d_points.size()<<"\n";
 
-  cout<<"local BA start"<<"\n";
+  //cout<<"local BA start"<<"\n";
   //cout<<"before local ba tvec: "<<tvec.at<double>(0)<<" "<<tvec.at<double>(1)<<" "<<tvec.at<double>(2)<<"\n";
 
     int rvec_eig_local_size=rvec_vec.size();
@@ -2142,7 +2175,7 @@ int repro_sum=0;
           }
           
           
-          solvePnPRansac(corr_3d_point_tmp,corr_2d_point_tmp,Kd,noArray(),rvec_tmp2,tvec_tmp2,false,100,3.0F,0.99,array,SOLVEPNP_P3P);
+          solvePnPRansac(corr_3d_point_tmp,corr_2d_point_tmp,Kd,noArray(),rvec_tmp2,tvec_tmp2,false,100,3.0F,0.99,array,SOLVEPNP_ITERATIVE);
 
 
           // cout<<corr_3d_point_tmp.size()<<"\n";
@@ -3111,7 +3144,7 @@ point_3d_map.erase(point_3d_map.begin(),point_3d_map.begin()+point_3d_map_size);
          
 
 
-    waitKey(1);
+    waitKey(50);
 
         
     //cout<<"Frame end"<<"\n";

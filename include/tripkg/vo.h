@@ -226,7 +226,7 @@ void featureDetection(Mat img_1, vector<Point2f> &points1, vector<pair<int, pair
     responseVector.push_back(keyPoints[i].response);
   vector<int> Indx(responseVector.size());
   std::iota(std::begin(Indx), std::end(Indx), 0);
-  cv::sortIdx(responseVector, Indx, CV_SORT_DESCENDING);
+  cv::sortIdx(responseVector, Indx, SORT_DESCENDING);
   vector<cv::KeyPoint> keyPointsSorted;
   for (unsigned int i = 0; i < keyPoints.size(); i++)
     keyPointsSorted.push_back(keyPoints[Indx[i]]);
@@ -272,7 +272,7 @@ void loopfeatureDetection(Mat img_1, vector<KeyPoint> &keypoints, Mat &desc, int
     responseVector.push_back(keyPoints[i].response);
   vector<int> Indx(responseVector.size());
   std::iota(std::begin(Indx), std::end(Indx), 0);
-  cv::sortIdx(responseVector, Indx, CV_SORT_DESCENDING);
+  cv::sortIdx(responseVector, Indx, SORT_DESCENDING);
   vector<cv::KeyPoint> keyPointsSorted;
   for (unsigned int i = 0; i < keyPoints.size(); i++)
     keyPointsSorted.push_back(keyPoints[Indx[i]]);
