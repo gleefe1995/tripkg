@@ -17,15 +17,15 @@
 #define parallax_def 0
 #define max_distance 1500
 #define loop_max_corners 2000
-#define thre_score 0.15
-// const double focal = 718.8560; //00-02
-//     const cv::Point2d pp(607.1928, 185.2157);
+#define thre_score 0.16
+const double focal = 718.8560; //00-02
+    const cv::Point2d pp(607.1928, 185.2157);
     // const double focal = 721.5377; //03
     // const cv::Point2d pp(609.5593, 172.854);
-    const double focal = 707.0912; //04-12
-    const cv::Point2d pp(601.8873, 183.1104);
-const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/07/image_0/%06d.png";
-string path_to_pose = "/home/gleefe/Downloads/dataset/poses/07.txt";
+    // const double focal = 707.0912; //04-12
+    // const cv::Point2d pp(601.8873, 183.1104);
+const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/00/image_0/%06d.png";
+string path_to_pose = "/home/gleefe/Downloads/dataset/poses/00.txt";
 
 
 using namespace std;
@@ -1488,7 +1488,7 @@ vector<pair<int,pair<int,Point3d>>> point_3d_map_tmp_tmp=point_3d_map_tmp_tmp2;
   
 //***********************************************************************************************Add local ba points**************************************************************************************************************
 
-if ((numFrame-numFrame_prev>=min_keyframe)||(rot_ang_diff>1.5)){
+if ((numFrame-numFrame_prev>=min_keyframe)||(rot_ang_diff>1.0)){
         keyframe_number++;
         if (number_of_3d_points.size()==local_ba_frame){
         BA_3d_points_map.erase(BA_3d_points_map.begin(),BA_3d_points_map.begin()+number_of_3d_points[0]);
@@ -1581,14 +1581,14 @@ if (number_of_3d_points.size()>=2){
     Eigen::MatrixXd BA_3d_points_eig(3,BA_3d_points_map_tmp.size());
     Eigen::VectorXi number_of_3d_points_eig(number_of_3d_points.size());
     
-    // int half_3d_points=0;
-    // for (int i=0;i<rvec_eig_local_size;i++){
-    //   number_of_3d_points_eig[i]=number_of_3d_points[i];
-    //   //cout<<number_of_3d_points_eig[i]<<"\n";
-    //   if (i<rvec_eig_local_size/2){
-    //     half_3d_points+=number_of_3d_points_eig[i];
-    //   }
-    // }
+    int half_3d_points=0;
+    for (int i=0;i<rvec_eig_local_size;i++){
+      number_of_3d_points_eig[i]=number_of_3d_points[i];
+      //cout<<number_of_3d_points_eig[i]<<"\n";
+      if (i<rvec_eig_local_size/2){
+        half_3d_points+=number_of_3d_points_eig[i];
+      }
+    }
     
 
     for (int i=0;i<BA_3d_points_map_tmp.size();i++){
@@ -1628,12 +1628,12 @@ if (number_of_3d_points.size()>=2){
               }
             }
           //cout<<it-BA_3d_map_points.begin()<<"\n";
-          /*
+          
           if (i<half_3d_points){
                 // cout<<i<<"\n";
               ceres::CostFunction* cost_function2 = 
           new ceres::AutoDiffCostFunction<SnavelyReprojectionError_Local_pose_fixed, 2,3>(
-            new SnavelyReprojectionError_Local_pose_fixed(BA_2d_points_eig[0],BA_2d_points_eig[1],focal,pp.x,pp.y,i,number_of_3d_points_eig,rvec_eig_local,tvec_eig_local)
+            new SnavelyReprojectionError_Local_pose_fixed(BA_2d_points_eig[0],BA_2d_points_eig[1],focal,pp.x,pp.y,i,number_of_3d_points_eig,rvec_eig_local.col(index_vec),tvec_eig_local.col(index_vec))
           );
        
     
@@ -1643,7 +1643,6 @@ if (number_of_3d_points.size()>=2){
 
           }
           else{
-            */
            ceres::CostFunction* cost_function2 = 
           new ceres::AutoDiffCostFunction<SnavelyReprojectionError_Local, 2, 3,3,3>(
             new SnavelyReprojectionError_Local(BA_2d_points_eig[0],BA_2d_points_eig[1],focal,pp.x,pp.y,i,number_of_3d_points_eig)
@@ -1657,7 +1656,7 @@ if (number_of_3d_points.size()>=2){
                              BA_3d_points_eig.col(it-BA_3d_map_points.begin()).data());
           }
       
-     // }
+      }
       
     //   cout<<"BA_3d_points_map_tmp size: "<<BA_3d_points_map_tmp.size()<<"\n";
     //  waitKey();
@@ -1836,19 +1835,22 @@ int repro_sum=0;
       QueryResults ret;
       testDatabase(features,db,Isloopdetected,keyframe_prev,keyframe_curr,thre_score);
       // &&once_loop_detected==0
-
+      
       if ((features.size()-prev_traj_num)>20){
         once_loop_detected=0;
       }
 
+
       if (once_loop_detected==1){
         Isloopdetected=0;
       }
-      //&&(keyframe_prev!=0)
-      if (Isloopdetected&&(once_loop_detected==0)&&(keyframe_prev!=0)){
+      
+      
+      while(Isloopdetected&&(once_loop_detected==0)){
         vector<g2o::SE3Quat> gt_poses;
         
         cout<<"loop closing start"<<"\n";
+        cout<<"Isloopdetected: "<<Isloopdetected<<"\n";
         cout<<"keyframe_prev id: "<<keyframe_prev<<"\n";
         cout<<"keyframe_curr id: "<<keyframe_curr<<"\n";
         cout<<"t_solve_f_vec size: "<<t_solve_f_vec.size()<<"\n";
@@ -1857,6 +1859,14 @@ int repro_sum=0;
 
         loop_keyframe_num.push_back(keyframe_prev);
         loop_keyframe_num.push_back(keyframe_curr);
+        int keyframe_prev_prev;
+        if (keyframe_prev==0){
+          keyframe_prev_prev =1;
+        }
+        else{
+          keyframe_prev_prev=keyframe_prev-1;
+        }
+
 
         //g2o SE3
     
@@ -1922,13 +1932,14 @@ int repro_sum=0;
           }
         }
         
+
         
         //find loop constraint
         vector<Point3d> prev_good_3d_points;
         vector<DMatch> prev_curr_good_matches;
           {
             cout<<"find loop constraint"<<"\n";
-          int prev_prev_numFrame = numFrame_vec.at(keyframe_prev-1);
+          int prev_prev_numFrame = numFrame_vec.at(keyframe_prev_prev);
           int prev_numFrame = numFrame_vec.at(keyframe_prev);
           
           // KeyPoint::convert( prevFeatures, keypoints_1);
@@ -1953,14 +1964,24 @@ int repro_sum=0;
           for (int i=0;i<keyframe_prev;i++){
             index_prev+=keypoints_number_loop[i];
           }
-
-          for (int i=index_prev-keypoints_number_loop[keyframe_prev-1];i<index_prev;i++){
+          if (keyframe_prev!=0){
+          for (int i=index_prev-keypoints_number_loop[keyframe_prev_prev];i<index_prev;i++){
               prev_prev_keypoints.push_back(keypoints_loop[i]);
           }
 
             for (int i=index_prev;i<index_prev+keypoints_number_loop[keyframe_prev];i++){
               prev_keypoints.push_back(keypoints_loop[i]);
             }
+          }
+          else{
+            for (int i=keypoints_number_loop[0];i<keypoints_number_loop[0]+keypoints_number_loop[1];i++){
+              prev_prev_keypoints.push_back(keypoints_loop[i]);
+          }
+
+            for (int i=0;i<keypoints_number_loop[0];i++){
+              prev_keypoints.push_back(keypoints_loop[i]);
+            }
+          }
           //   cout<<keypoints_loop.size()<<"\n";
           // cout<<prev_prev_keypoints.size()<<"\n";
           // cout<<prev_keypoints.size()<<"\n";
@@ -1970,7 +1991,7 @@ int repro_sum=0;
 
           
             prev_desc = desc_loop[keyframe_prev];
-            prev_prev_desc = desc_loop[keyframe_prev-1];
+            prev_prev_desc = desc_loop[keyframe_prev_prev];
           
           
           //cout<<"BFMatcher"<<"\n";
@@ -2043,12 +2064,12 @@ int repro_sum=0;
           Mat R_solve_tmp;
           Mat tvec_tmp2(3,1,CV_64F);
           {
-            rvec_tmp2.at<double>(0) = rvec_vec_loop[keyframe_prev-1].x;
-            tvec_tmp2.at<double>(0) = tvec_vec_loop[keyframe_prev-1].x;
-            rvec_tmp2.at<double>(1) = rvec_vec_loop[keyframe_prev-1].y;
-            tvec_tmp2.at<double>(1) = tvec_vec_loop[keyframe_prev-1].y;
-            rvec_tmp2.at<double>(2) = rvec_vec_loop[keyframe_prev-1].z;
-            tvec_tmp2.at<double>(2) = tvec_vec_loop[keyframe_prev-1].z;
+            rvec_tmp2.at<double>(0) = rvec_vec_loop[keyframe_prev_prev].x;
+            tvec_tmp2.at<double>(0) = tvec_vec_loop[keyframe_prev_prev].x;
+            rvec_tmp2.at<double>(1) = rvec_vec_loop[keyframe_prev_prev].y;
+            tvec_tmp2.at<double>(1) = tvec_vec_loop[keyframe_prev_prev].y;
+            rvec_tmp2.at<double>(2) = rvec_vec_loop[keyframe_prev_prev].z;
+            tvec_tmp2.at<double>(2) = tvec_vec_loop[keyframe_prev_prev].z;
           }
           Rodrigues(rvec_tmp2,R_solve_tmp);
 
@@ -2170,6 +2191,12 @@ int repro_sum=0;
           // drawMatches(prev_prev_image, prev_keypoints, prev_image, keypoints_curr, curr_good_matches, img_match);
           // imshow("Matches", img_match);
           // waitKey();
+          if ((corr_3d_point_tmp.size())<30){
+            Isloopdetected=0;
+            cout<<"exit loop closing because inlier size is very small"<<"\n";
+            break;
+          }
+
 
 
           }
@@ -2180,7 +2207,10 @@ int repro_sum=0;
 
           // cout<<corr_3d_point_tmp.size()<<"\n";
           // cout<<corr_2d_point_tmp[5]<<"\n";
-          // cout<<array.size()<<"\n";
+           cout<<"p3p inlier size: "<<array.rows<<"\n";
+
+          
+
           Rodrigues(rvec_tmp2,R_solve_tmp);
           Mat R_solve_inv_tmp = R_solve_tmp.t();
           Mat t_solve_f_tmp = -R_solve_inv_tmp * tvec_tmp2;
@@ -2241,6 +2271,10 @@ int repro_sum=0;
           
           }
 
+        
+
+
+
 
         // set edges between poses
         {
@@ -2291,6 +2325,7 @@ int repro_sum=0;
             }
            
           double rel_scale=1;
+          vector<double> dist_vec;
           {
             cout<<"find relative scale by orb "<<"\n";
           
@@ -2434,7 +2469,7 @@ int repro_sum=0;
             }
           }
 
-          vector<double> dist_vec;
+          
           double scale;
           for (int i=0;i<rel_prev_good_3d_points.size();i++){
             
@@ -2457,8 +2492,17 @@ int repro_sum=0;
           rel_scale=dist_vec.at(dist_vec.size()/2);
           cout<<"rel good Matches: "<<rel_prev_good_3d_points.size()<<"\n";
           cout<<"rel scale: "<<rel_scale<<"\n";
+          
           //waitKey();
           }
+          
+          
+          if ((dist_vec.size()<20)){
+            Isloopdetected=0;
+            cout<<"exit loop closing because rel scale is not accurate"<<"\n";
+            break;
+          }
+
 
 
 

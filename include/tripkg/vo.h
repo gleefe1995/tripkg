@@ -788,7 +788,7 @@ struct SnavelyReprojectionError_Local_pose_fixed
   {
     // camera[0,1,2] are the angle-axis rotation.
 
-    int number_of_3d_points = 0;
+    
 
     int count = 0;
     //cout<<"index of BA_2d_points: "<<j<<"\n";
