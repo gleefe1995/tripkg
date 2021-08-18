@@ -1,3 +1,0 @@
-/home/gleefe/catkin_ws/src/tripkg/Thirdparty/CmakeProject/build/CMakeFiles/rebuild_cache.dir
-/home/gleefe/catkin_ws/src/tripkg/Thirdparty/CmakeProject/build/CMakeFiles/ANMS_Codes.dir
-/home/gleefe/catkin_ws/src/tripkg/Thirdparty/CmakeProject/build/CMakeFiles/edit_cache.dir
