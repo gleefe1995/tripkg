@@ -1,0 +1,3 @@
+[submodule "DBoW2"]
+	path = DBoW2
+	url = https://github.com/dorian3d/DBoW2
