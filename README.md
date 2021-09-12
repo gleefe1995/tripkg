@@ -1,21 +1,30 @@
-# mono_vo_triangulationpoints
+# mono vo
 
 ```
 cd catkin_ws/src
-git clone https://github.com/gleefe1995/mono_vo_triangulationpoints.git
-cd ..
-catkin_make
+git clone https://github.com/gleefe1995/tripkg.git
+cd tripkg/Thirdparty
+cd DBoW2
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j
+cd ../../
+cd g2o
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j
+cd ~/catkin_ws
+catkin_make -DCMAKE_BUILD_TYPE=Release
 source devel/setup.bash
-rosrun tripkg triangulation
+roslaunch tripkg triangulation.launch
+rosrun tripkg monovo
 ```
 
-![image](https://user-images.githubusercontent.com/67038853/116507323-02f78b80-a8fa-11eb-895b-742b70a73dda.png)
+![kitti05](https://user-images.githubusercontent.com/67038853/132988450-419ad8e1-c5c1-42fc-9186-ef1367d4bb59.gif)
 
-red points : feature
+![kitti06](https://user-images.githubusercontent.com/67038853/132988664-4c215e96-9141-4549-ab1b-3063e6bac866.gif)
 
-blue points : triangulation 계산 후 camera coordinate로 옮긴 points
 
-3d points를 cloud point msg로 전달
 
 ### reference
 
