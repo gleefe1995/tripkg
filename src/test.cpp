@@ -16,17 +16,20 @@
 #include <fstream>
 #include <string>
 
+//#include <tripkg/Frame.h>
+
+#include <tripkg/SPextractor.h>
+#include <tripkg/SuperPoint.h>
+
+
+
+
 using namespace std;
 using namespace cv;
+using namespace ORB_SLAM2;
 // using namespace DBoW2;
 #define RATIO  0.4
 const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/00/image_0/%06d.png";
-
-
-void adaptiveNonMaximalSuppresion( std::vector<cv::KeyPoint>& keypoints,
-                                       const int numToKeep );
-
-
 
 
 // const int NIMAGES = 100;
@@ -34,150 +37,107 @@ void adaptiveNonMaximalSuppresion( std::vector<cv::KeyPoint>& keypoints,
 int main(int argc, char** argv)
 {
     
+
+int nFeatures=2000;
+float scaleFactor=1.2;
+int nLevels=1;
+float iniThFAST=0.015;
+float minThFAST=0.007;
     
+// if(torch::cuda::is_available()){
+// cout<<"cuda is available"<<"\n";
+
+// }
+
+
+
      
      char filename1[200];
-  char filename2[200];
+//   char filename2[200];
 
   
  sprintf(filename1, path_to_image, 0);
-  sprintf(filename2, path_to_image, 1);
+//   sprintf(filename2, path_to_image, 1);
    Mat image1_c = imread(filename1);
-  Mat image2_c = imread(filename2);
-  if ( !image1_c.data || !image2_c.data ) { 
-    cout<< " --(!) Error reading images " << std::endl; return -1;
-  }
+//   Mat image2_c = imread(filename2);
+//   if ( !image1_c.data || !image2_c.data ) { 
+//     cout<< " --(!) Error reading images " << std::endl; return -1;
+//   }
 Mat image1,image2;
-Mat dst;
+// Mat dst;
+
     cvtColor(image1_c, image1, COLOR_BGR2GRAY);
-    cvtColor(image2_c, image2, COLOR_BGR2GRAY);
+//     cvtColor(image2_c, image2, COLOR_BGR2GRAY);
+  image2 = image1.clone();
+// namedWindow("dst",WINDOW_AUTOSIZE);
   
-namedWindow("dst",WINDOW_AUTOSIZE);
+   
+vector<KeyPoint> keyPoints;
+
+Mat mDescriptors;
+Mat spimg_before;
+Mat spimg;
+
+ORBextractor* extractor;
+
+clock_t topNStart = clock();
   
  
+extractor = new ORBextractor(nFeatures,scaleFactor,nLevels,iniThFAST,minThFAST);
+
+(*extractor)(image1,cv::Mat(),keyPoints,mDescriptors);
 
 
-  imshow("dst",image1);
-  waitKey();
+
+ /*
+int numRetPoints = 1000; //choose exact number of return points
+ float tolerance = 0.1; // tolerance of the number of return points
+  //Sorting keypoints by deacreasing order of strength
+  vector<float> responseVector;
+  for (unsigned int i = 0; i < keyPoints.size(); i++)
+    responseVector.push_back(keyPoints[i].response);
+
+  // cout<<responseVector.size()<<"\n";
+
+  vector<int> Indx(responseVector.size());
+  std::iota(std::begin(Indx), std::end(Indx), 0);
+  cv::sortIdx(responseVector, Indx, SORT_DESCENDING);
+  vector<cv::KeyPoint> keyPointsSorted;
+  for (unsigned int i = 0; i < keyPoints.size(); i++)
+    keyPointsSorted.push_back(keyPoints[Indx[i]]);
+
+
+  // cout<<keyPointsSorted.size()<<"\n";
+
+  vector<cv::KeyPoint> sscKP = ssc(keyPointsSorted, numRetPoints, tolerance, image1.cols, image1.rows);
+*/
+ clock_t topNTotalTime =
+      double(clock() - topNStart) * 1000 / (double)CLOCKS_PER_SEC;
+  cout << "Finish SuperPoint in " << topNTotalTime << " miliseconds." << endl;
+
+//  clock_t FASTTotalTime =
+//       double(clock() - FASTStart) * 1000 / (double)CLOCKS_PER_SEC;
+//   cout << "Finish FAST in " << FASTTotalTime << " miliseconds." << endl;
+
+  // KeyPoint::convert(sscKP, points1, vector<int>());
+
+// Mat Fastimg;
+drawKeypoints(image1,keyPoints,spimg,Scalar::all(-1));
+// drawKeypoints(image1,sscKP,Fastimg,Scalar::all(-1));
+// cout<<mvKeys.size()<<"\n";
+// cout<<sscKP.size()<<"\n";
+
+imshow("superpoint",spimg);
+// imshow("FastImage", Fastimg);
+waitKey();
 
 
 return 0;
 }
 
 
-// void changeStructure(const cv::Mat &plain, vector<cv::Mat> &out)
-// {
-//   out.resize(plain.rows);
-
-//   for(int i = 0; i < plain.rows; ++i)
-//   {
-//     out[i] = plain.row(i);
-//   }
-// }
-
-
-// void testDatabase(const vector<vector<cv::Mat > > &features)
-// {
-//   cout << "Creating a small database..." << endl;
-
-//   // load the vocabulary from disk
-//   OrbVocabulary voc("small_voc.yml.gz");
-  
-//   OrbDatabase db(voc, false, 0); // false = do not use direct index
-//   // (so ignore the last param)
-//   // The direct index is useful if we want to retrieve the features that 
-//   // belong to some vocabulary node.
-//   // db creates a copy of the vocabulary, we may get rid of "voc" now
-
-//   // add images to the database
-//   for(int i = 0; i < NIMAGES; i++)
-//   {
-//     db.add(features[i]);
-//   }
-
-//   cout << "... done!" << endl;
-
-//   cout << "Database information: " << endl << db << endl;
-
-//   // and query the database
-//   cout << "Querying the database: " << endl;
-
-//   QueryResults ret;
-//   for(int i = 0; i < NIMAGES; i++)
-//   {
-//     db.query(features[i], ret, 4);
-
-//     // ret[0] is always the same image in this case, because we added it to the 
-//     // database. ret[1] is the second best match.
-
-//     cout << "Searching for Image " << i << ". " << ret << endl;
-//   }
-
-//   cout << endl;
-
-//   // we can save the database. The created file includes the vocabulary
-//   // and the entries added
-//   cout << "Saving database..." << endl;
-//   db.save("small_db.yml.gz");
-//   cout << "... done!" << endl;
-  
-//   // once saved, we can load it again  
-//   cout << "Retrieving database once again..." << endl;
-//   OrbDatabase db2("small_db.yml.gz");
-//   cout << "... done! This is: " << endl << db2 << endl;
-// }
-
-
-
- void adaptiveNonMaximalSuppresion( std::vector<cv::KeyPoint>& keypoints,
-                                       const int numToKeep )
-    {
-      if( keypoints.size() < numToKeep ) { return; }
-
-      //
-      // Sort by response
-      //
-      std::sort( keypoints.begin(), keypoints.end(),
-                 [&]( const cv::KeyPoint& lhs, const cv::KeyPoint& rhs )
-                 {
-                   return lhs.response > rhs.response;
-                 } );
-
-      std::vector<cv::KeyPoint> anmsPts;
-
-      std::vector<double> radii;
-      radii.resize( keypoints.size() );
-      std::vector<double> radiiSorted;
-      radiiSorted.resize( keypoints.size() );
-
-      const float robustCoeff = 1.11; // see paper
-
-      for( int i = 0; i < keypoints.size(); ++i )
-      {
-        const float response = keypoints[i].response * robustCoeff;
-        double radius = std::numeric_limits<double>::max();
-        for( int j = 0; j < i && keypoints[j].response > response; ++j )
-        {
-          radius = std::min( radius, cv::norm( keypoints[i].pt - keypoints[j].pt ) );
-        }
-        radii[i]       = radius;
-        radiiSorted[i] = radius;
-      }
-
-      std::sort( radiiSorted.begin(), radiiSorted.end(),
-                 [&]( const double& lhs, const double& rhs )
-                 {
-                   return lhs > rhs;
-                 } );
-
-      const double decisionRadius = radiiSorted[numToKeep];
-      for( int i = 0; i < radii.size(); ++i )
-      {
-        if( radii[i] >= decisionRadius )
-        {
-          anmsPts.push_back( keypoints[i] );
-        }
-      }
-
-      anmsPts.swap( keypoints );
-    }
+// clock_t topNStart = clock();
+//   vector<cv::KeyPoint> topnKP = topN(keyPointsSorted, numRetPoints);
+//   clock_t topNTotalTime =
+//       double(clock() - topNStart) * 1000 / (double)CLOCKS_PER_SEC;
+//   cout << "Finish TopN in " << topNTotalTime << " miliseconds." << endl;

@@ -9,10 +9,15 @@ project(tripkg)
 ## is used, also find other catkin packages
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/thirdparty/g2o/cmake_modules)
 
+set(CMAKE_PREFIX_PATH /home/gleefe/pytorch/torch/share/cmake/Torch;/opt/ros/melodic)
+#set(Torch_DIR /home/gleefe/pytorch/torch/share/cmake/Torch)
+find_package(Torch REQUIRED)
+
 find_package(OpenCV REQUIRED)
 find_package(PCL REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(g2o REQUIRED)
+find_package(Pangolin REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
@@ -22,8 +27,9 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
   cv_bridge
   image_transport
-  
 )
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 set(HDRS
   include/DBoW2/BowVector.h           include/DBoW2/FBrief.h
@@ -155,21 +161,31 @@ catkin_package(
 include_directories(
   include
   ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/include
   ${catkin_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
   ${Opencv_INCLUDE_DIRS}
   ${CERES_INCLUDE_DIRS}
   ${G2O_INCLUDE_DIR}
   ${CSPARSE_INCLUDE_DIR}
+  ${TORCH_INCLUDE_DIRS}
+  ${Pangolin_INCLUDE_DIRS}
   /usr/include/suitesparse
 )
+
+# add_library(${PROJECT_NAME} SHARED
+# src/SPextractor.cpp
+# src/SuperPoint.cpp
+# )
+
 
 #link_directories(${PCL_LIBRARY_DIRS})
 
 ## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/tripkg.cpp
-# )
+#add_library(${PROJECT_NAME}
+  # src/SPextractor.cc
+  # src/SuperPoint.cc
+#)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -251,15 +267,21 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
+
+
+
+
 add_executable(monovo src/tri.cpp)
-target_link_libraries(monovo ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${G2O_LIBS} g2o_types_slam3d ${CSPARSE_LIBRARY})
+target_link_libraries(monovo ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${G2O_LIBS} g2o_types_slam3d ${CSPARSE_LIBRARY} ${TORCH_LIBRARIES})
 target_link_libraries(monovo
 ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 )
 
+
 add_executable(orbtest src/test.cpp)
-target_link_libraries(orbtest ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${G2O_LIBS} ${CSPARSE_LIBRARY})
+target_link_libraries(orbtest ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${G2O_LIBS} ${CSPARSE_LIBRARY} ${TORCH_LIBRARIES} -lboost_system)
 target_link_libraries(orbtest
 ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 )
-
+set_property(TARGET orbtest PROPERTY CXX_STANDARD 14)
+set_property(TARGET monovo PROPERTY CXX_STANDARD 14)
