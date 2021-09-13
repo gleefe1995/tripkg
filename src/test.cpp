@@ -38,28 +38,28 @@ int main(int argc, char** argv)
 {
     
 
-int nFeatures=2000;
+int nFeatures=500;
 float scaleFactor=1.2;
 int nLevels=1;
 float iniThFAST=0.015;
 float minThFAST=0.007;
     
-// if(torch::cuda::is_available()){
-// cout<<"cuda is available"<<"\n";
+if(torch::cuda::is_available()){
+cout<<"cuda is available"<<"\n";
 
-// }
+}
 
 
 
      
      char filename1[200];
-//   char filename2[200];
+  char filename2[200];
 
   
  sprintf(filename1, path_to_image, 0);
-//   sprintf(filename2, path_to_image, 1);
+  sprintf(filename2, path_to_image, 1);
    Mat image1_c = imread(filename1);
-//   Mat image2_c = imread(filename2);
+  Mat image2_c = imread(filename2);
 //   if ( !image1_c.data || !image2_c.data ) { 
 //     cout<< " --(!) Error reading images " << std::endl; return -1;
 //   }
@@ -67,26 +67,33 @@ Mat image1,image2;
 // Mat dst;
 
     cvtColor(image1_c, image1, COLOR_BGR2GRAY);
-//     cvtColor(image2_c, image2, COLOR_BGR2GRAY);
-  image2 = image1.clone();
+    cvtColor(image2_c, image2, COLOR_BGR2GRAY);
+  
 // namedWindow("dst",WINDOW_AUTOSIZE);
   
    
 vector<KeyPoint> keyPoints;
-
+vector<KeyPoint> keyPoints2;
 Mat mDescriptors;
+Mat mDescriptors2;
 Mat spimg_before;
-Mat spimg;
+Mat spimg,spimg2;
 
 ORBextractor* extractor;
 
-clock_t topNStart = clock();
+
   
- 
+ clock_t topNStart = clock();
 extractor = new ORBextractor(nFeatures,scaleFactor,nLevels,iniThFAST,minThFAST);
+
+// clock_t topNStart = clock();
 
 (*extractor)(image1,cv::Mat(),keyPoints,mDescriptors);
 
+clock_t topNTotalTime1 =
+      double(clock() - topNStart) * 1000 / (double)CLOCKS_PER_SEC;
+  cout << "Finish SuperPoint first image in " << topNTotalTime1 << " miliseconds." << endl;
+(*extractor)(image2,cv::Mat(),keyPoints2,mDescriptors2);
 
 
  /*
@@ -113,7 +120,7 @@ int numRetPoints = 1000; //choose exact number of return points
 */
  clock_t topNTotalTime =
       double(clock() - topNStart) * 1000 / (double)CLOCKS_PER_SEC;
-  cout << "Finish SuperPoint in " << topNTotalTime << " miliseconds." << endl;
+  cout << "Finish SuperPoint two image in " << topNTotalTime << " miliseconds." << endl;
 
 //  clock_t FASTTotalTime =
 //       double(clock() - FASTStart) * 1000 / (double)CLOCKS_PER_SEC;
@@ -123,12 +130,43 @@ int numRetPoints = 1000; //choose exact number of return points
 
 // Mat Fastimg;
 drawKeypoints(image1,keyPoints,spimg,Scalar::all(-1));
+drawKeypoints(image2,keyPoints2,spimg2,Scalar::all(-1));
 // drawKeypoints(image1,sscKP,Fastimg,Scalar::all(-1));
 // cout<<mvKeys.size()<<"\n";
 // cout<<sscKP.size()<<"\n";
 
 imshow("superpoint",spimg);
+imshow("superpoint2",spimg2);
 // imshow("FastImage", Fastimg);
+
+
+
+
+Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
+    std::vector< std::vector<DMatch> > knn_matches;
+    matcher->knnMatch( mDescriptors, mDescriptors2, knn_matches, 2 );
+    //-- Filter matches using the Lowe's ratio test
+    const float ratio_thresh = 0.7f;
+    std::vector<DMatch> good_matches;
+    for (size_t i = 0; i < knn_matches.size(); i++)
+    {
+        if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
+        {
+            good_matches.push_back(knn_matches[i][0]);
+        }
+    }
+    //-- Draw matches
+    Mat img_matches;
+    drawMatches( image1, keyPoints, image2, keyPoints2, good_matches, img_matches, Scalar::all(-1),
+                 Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::DEFAULT );
+    //-- Show detected matches
+    imshow("Good Matches", img_matches );
+
+
+
+
+
+
 waitKey();
 
 
@@ -136,8 +174,3 @@ return 0;
 }
 
 
-// clock_t topNStart = clock();
-//   vector<cv::KeyPoint> topnKP = topN(keyPointsSorted, numRetPoints);
-//   clock_t topNTotalTime =
-//       double(clock() - topNStart) * 1000 / (double)CLOCKS_PER_SEC;
-//   cout << "Finish TopN in " << topNTotalTime << " miliseconds." << endl;

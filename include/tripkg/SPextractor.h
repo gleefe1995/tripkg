@@ -23,8 +23,8 @@
 
 #include <vector>
 #include <list>
-#include <opencv/cv.h>
-
+// #include <opencv/cv.h>
+#include <opencv2/core.hpp>
 #include <torch/torch.h>
 #include "tripkg/SuperPoint.h"
 
@@ -470,7 +470,7 @@ void SPextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoint
     for (int level = 0; level < nlevels; ++level)
     {
         SPDetector detector(model);
-        detector.detect(mvImagePyramid[level], false);
+        detector.detect(mvImagePyramid[level], true);
 
         const int minBorderX = EDGE_THRESHOLD-3;
         const int minBorderY = minBorderX;

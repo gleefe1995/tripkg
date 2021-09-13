@@ -9,7 +9,7 @@ project(tripkg)
 ## is used, also find other catkin packages
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/thirdparty/g2o/cmake_modules)
 
-set(CMAKE_PREFIX_PATH /home/gleefe/pytorch/torch/share/cmake/Torch;/opt/ros/melodic)
+set(CMAKE_PREFIX_PATH /home/gleefe/Downloads/libtorch/share/cmake/Torch;/opt/ros/melodic)
 #set(Torch_DIR /home/gleefe/pytorch/torch/share/cmake/Torch)
 find_package(Torch REQUIRED)
 
