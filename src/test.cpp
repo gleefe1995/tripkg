@@ -18,9 +18,9 @@
 
 //#include <tripkg/Frame.h>
 
-#include <tripkg/SPextractor.h>
-#include <tripkg/SuperPoint.h>
-
+// #include <tripkg/SPextractor.h>
+// #include <tripkg/SuperPoint.h>
+#include <tripkg/ORBextractor.h>
 
 
 
@@ -28,7 +28,7 @@ using namespace std;
 using namespace cv;
 using namespace ORB_SLAM2;
 // using namespace DBoW2;
-#define RATIO  0.4
+
 const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/00/image_0/%06d.png";
 
 
@@ -37,17 +37,23 @@ const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/00/image_0
 int main(int argc, char** argv)
 {
     
+// sp
+// int nFeatures=500;
+// float scaleFactor=1.2;
+// int nLevels=1;
+// float iniThFAST=0.015;
+// float minThFAST=0.007;
+    //orb
+    int nFeatures = 2000;
+    float scaleFactor = 1.2;
+    int nLevels = 8;
+    int iniThFAST = 20;
+    int minThFAST = 7;
 
-int nFeatures=500;
-float scaleFactor=1.2;
-int nLevels=1;
-float iniThFAST=0.015;
-float minThFAST=0.007;
-    
-if(torch::cuda::is_available()){
-cout<<"cuda is available"<<"\n";
+// if(torch::cuda::is_available()){
+// cout<<"cuda is available"<<"\n";
 
-}
+// }
 
 
 
@@ -130,18 +136,18 @@ int numRetPoints = 1000; //choose exact number of return points
 
 // Mat Fastimg;
 drawKeypoints(image1,keyPoints,spimg,Scalar::all(-1));
-drawKeypoints(image2,keyPoints2,spimg2,Scalar::all(-1));
+// drawKeypoints(image2,keyPoints2,spimg2,Scalar::all(-1));
 // drawKeypoints(image1,sscKP,Fastimg,Scalar::all(-1));
 // cout<<mvKeys.size()<<"\n";
 // cout<<sscKP.size()<<"\n";
 
 imshow("superpoint",spimg);
-imshow("superpoint2",spimg2);
+// imshow("superpoint2",spimg2);
 // imshow("FastImage", Fastimg);
 
 
-
-
+/*
+{
 Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
     std::vector< std::vector<DMatch> > knn_matches;
     matcher->knnMatch( mDescriptors, mDescriptors2, knn_matches, 2 );
@@ -161,8 +167,8 @@ Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FL
                  Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::DEFAULT );
     //-- Show detected matches
     imshow("Good Matches", img_matches );
-
-
+}
+*/
 
 
 

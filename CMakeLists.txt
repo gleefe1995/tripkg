@@ -9,7 +9,7 @@ project(tripkg)
 ## is used, also find other catkin packages
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/thirdparty/g2o/cmake_modules)
 
-set(CMAKE_PREFIX_PATH /home/gleefe/Downloads/libtorch/share/cmake/Torch;/opt/ros/melodic)
+set(CMAKE_PREFIX_PATH /home/gleefe/pytorch/torch/share/cmake/Torch;/opt/ros/melodic)
 #set(Torch_DIR /home/gleefe/pytorch/torch/share/cmake/Torch)
 find_package(Torch REQUIRED)
 
@@ -272,7 +272,7 @@ include_directories(
 
 
 add_executable(monovo src/tri.cpp)
-target_link_libraries(monovo ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${G2O_LIBS} g2o_types_slam3d ${CSPARSE_LIBRARY} ${TORCH_LIBRARIES})
+target_link_libraries(monovo ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${G2O_LIBS} g2o_types_slam3d ${CSPARSE_LIBRARY} ${TORCH_LIBRARIES} -lboost_system)
 target_link_libraries(monovo
 ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 )
@@ -283,5 +283,5 @@ target_link_libraries(orbtest ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARI
 target_link_libraries(orbtest
 ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 )
-set_property(TARGET orbtest PROPERTY CXX_STANDARD 14)
-set_property(TARGET monovo PROPERTY CXX_STANDARD 14)
+#set_property(TARGET orbtest PROPERTY CXX_STANDARD 14)
+#set_property(TARGET monovo PROPERTY CXX_STANDARD 14)

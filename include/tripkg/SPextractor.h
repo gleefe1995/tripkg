@@ -119,7 +119,7 @@ protected:
     std::shared_ptr<SuperPoint> model;
 };
 
-typedef SPextractor ORBextractor;
+// typedef SPextractor ORBextractor;
 
 const int PATCH_SIZE = 31;
 const int HALF_PATCH_SIZE = 15;

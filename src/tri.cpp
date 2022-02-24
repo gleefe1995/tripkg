@@ -1,7 +1,8 @@
 
 //0514
 #include "tripkg/vo.h"
-
+#include "tripkg/Feature.h"
+#include "tripkg/loadfile.h"
 
 #define MAX_FRAME 5000
 #define MIN_NUM_FEAT 2000
@@ -18,14 +19,6 @@
 #define max_distance 1500
 #define loop_max_corners 2000
 #define thre_score 0.16
-const double focal = 718.8560; //00-02
-    const cv::Point2d pp(607.1928, 185.2157);
-    // const double focal = 721.5377; //03
-    // const cv::Point2d pp(609.5593, 172.854);
-    // const double focal = 707.0912; //04-12
-    // const cv::Point2d pp(601.8873, 183.1104);
-const char* path_to_image = "/home/gleefe/Downloads/dataset/sequences/00/image_0/%06d.png";
-string path_to_pose = "/home/gleefe/Downloads/dataset/poses/00.txt";
 
 
 using namespace std;
@@ -55,39 +48,53 @@ bool compare_point2 (pair<int,Point3d> a,
 
 
 int main(int argc, char **argv){
-    g2o_type_VertexSE3();
-    google::InitGoogleLogging(argv[0]);
-    //Ptr<Feature2D> detector = ORB::create();
-    Ptr<ORB> detector = ORB::create();
-    //Ptr<Feature2D> detector_const = ORB::create(3000);
-    Ptr<ORB> detector_const = ORB::create(4000);
-    //ros
-    ros::init(argc, argv, "tri");
-    ros::NodeHandle n;
-    ros::Publisher world_points_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("world_points", 1000);
-    ros::Publisher traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("traj", 1000);
-    ros::Publisher curr_traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("curr_traj", 1000);
-    ros::Publisher gt_traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("gt_traj", 1000);
-    ros::Publisher tracking_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("tracking", 1000);
-    ros::Publisher keyframe_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("keyframe", 1000);
-    //ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 1);
-    
-    //image
-    image_transport::ImageTransport it(n);
-    image_transport::Publisher image_pub = it.advertise("camera/image", 1000);
-    
-    ros::Rate loop_rate(10);
-    
-   //uint32_t shape = visualization_msgs::Marker::ARROW;
-   
-   
+  g2o_type_VertexSE3();
+  google::InitGoogleLogging(argv[0]);
+  Ptr<ORB> detector = ORB::create();
+  Ptr<ORB> detector_const = ORB::create(4000);
+  //ros
+  ros::init(argc, argv, "tri");
+  ros::NodeHandle n;
+  ros::Publisher world_points_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("world_points", 1000);
+  ros::Publisher traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("traj", 1000);
+  ros::Publisher curr_traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("curr_traj", 1000);
+  ros::Publisher gt_traj_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("gt_traj", 1000);
+  ros::Publisher tracking_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("tracking", 1000);
+  ros::Publisher keyframe_pub = n.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("keyframe", 1000);
+  ros::Rate loop_rate(10);
+  
+  //image
+  image_transport::ImageTransport it(n);
+  image_transport::Publisher image_pub = it.advertise("camera/image", 1000);
+  
+  string pti = "/home/gleefe/Downloads/dataset/sequences/" + (string)argv[1]+"/image_0/%06d.png";
+  string path_to_pose = "/home/gleefe/Downloads/dataset/poses/" + (string)argv[1] + ".txt";
+  const char* path_to_image = pti.c_str();
+  
+  double focal = 718.8560;
+  cv::Point2d pp(607.1928, 185.2157);
+
+  if ((string)argv[1]=="00"){
+    focal = 718.8560; //00-02
+    pp = cv::Point2d(607.1928, 185.2157);
+  }
+  else if ((string)argv[1]=="03"){
+    focal = 721.5377; //03
+    pp = cv::Point2d(609.5593, 172.854);
+  }
+  else{
+    focal = 707.0912; //04-12
+    pp = cv::Point2d(601.8873, 183.1104);
+  }
+
+  Mat Kd = (Mat_<double>(3,3)<< focal, 0, pp.x,
+                              0, focal, pp.y,
+                              0,  0,   1);
+
+
 
   Mat R_f, t_f; //the final rotation and tranlation vectors containing the 
-  int error=0;
-
-  ofstream myfile;
-  myfile.open ("results1_1.txt");
-
+  
   double scale = 1.00;
   char filename1[200];
   char filename2[200];
@@ -95,14 +102,7 @@ int main(int argc, char **argv){
   sprintf(filename1, path_to_image, 0);
   sprintf(filename2, path_to_image, 1);
 
-  char text[100];
-  char error_text[100];
-  int fontFace = FONT_HERSHEY_PLAIN;
-  double fontScale = 1;
-  int thickness = 1;  
-  Point textOrg(10,50);
-  Point textOrg2(460, 490);
-
+  
   //read the first two frames from the dataset
   Mat image1_c = imread(filename1);
   Mat image2_c = imread(filename2);
@@ -110,149 +110,106 @@ int main(int argc, char **argv){
   if ( !image1_c.data || !image2_c.data ) { 
     cout<< " --(!) Error reading images " << std::endl; return -1;
   }
+
   if(image1_c.empty()) throw std::runtime_error("unable to open the image");
     
-    int feature_number=0;
     
-     
+  Mat image1;
+  Mat image2;
+
+  cvtColor(image1_c, image1, COLOR_BGR2GRAY);
+  cvtColor(image2_c, image2, COLOR_BGR2GRAY);
+
+  vector<Point2f> points1;
+  vector<Point2f> points2;
   
-    Mat image1;
-    Mat image2;
 
-    cvtColor(image1_c, image1, COLOR_BGR2GRAY);
-    cvtColor(image2_c, image2, COLOR_BGR2GRAY);
-
-    vector<Point2f> points1;
-    vector<Point2f> points2;
-    vector<KeyPoint> key_points1;
-    vector<KeyPoint> key_points2;
-    vector<Point2f> points2_tmp;
-    vector<pair<int,pair<int,Point2f>>> points1_map;
-    vector<pair<int,pair<int,Point2f>>> points2_map;
-    int keyframe_num=0;
-    featureDetection(image1, points1, points1_map,keyframe_num,MAX_CORNERS);
-    // featureDetection_esential(prevImage, prevFeatures,prev_points_map,keyframe_num);  
-    
-    vector<uchar> status;
-    Mat tri_prevImage = image1.clone();
-    vector<Point2f> tri_prevFeatures;
-    vector<pair<int,pair<int,Point2f>>> tri_prev_points_map = points1_map;
-    featureTracking(image1,image2,points1,points2,points1_map,points2_map, status,points2_tmp);
-    
-    erase_int_point2f(image1,points2_tmp,tri_prev_points_map,status);
-    
-    //TODO: add a fucntion to load these values directly from KITTI's calib files
-    // WARNING: different sequences in the KITTI VO dataset have different intrinsic/extrinsic parameters
-    
-    
-    Mat K = (Mat_<float>(3,3)<< focal, 0, pp.x,
-                                                     0, focal, pp.y,
-                                                        0,  0,   1);
-    
-    
-    
-
-    Mat E, R, t, mask;
-    int index;
-    E = findEssentialMat(points2, points1, focal, pp, RANSAC, 0.999, 1.0, mask);
-    recoverPose(E, points2, points1, R, t, focal, pp, mask);
-
-
-    scale = getAbsoluteScale(1, 0,path_to_pose);
-    get_gt(1, 0,path_to_pose);
-
-    //t=scale*t;
-
-     Mat prevImage = image2;
-     Mat currImage;
-     vector<Point2f> prevFeatures = points2;
-     vector<Point2f> currFeatures;
-     vector<pair<int,pair<int,Point2f>>> prev_points_map = points2_map;
-     vector<pair<int,pair<int,Point2f>>> curr_points_map;
-     vector<KeyPoint> prev_keypoints = key_points2;
-     vector<KeyPoint> curr_keypoints;
-      char filename[100];
-
-    R_f = R.clone();
-    t_f = t.clone();
-    
-      clock_t begin = clock();
-
-      //namedWindow( "Road facing camera", WINDOW_AUTOSIZE );// Create a window for display.
-     // namedWindow( "Trajectory", WINDOW_AUTOSIZE );// Create a window for display.
-
-  Mat traj = Mat::zeros(1000, 1200, CV_8UC3);
+  vector<Point2f> points2_tmp;
+  vector<pair<int,pair<int,Point2f>>> points1_map;
+  vector<pair<int,pair<int,Point2f>>> points2_map;
+  int keyframe_num=0;
+  Feature::featureDetection(image1, points1, points1_map,keyframe_num,MAX_CORNERS);
+  // featureDetection_esential(prevImage, prevFeatures,prev_points_map,keyframe_num);  
   
+  vector<uchar> status;
+  Mat tri_prevImage = image1.clone();
+  vector<Point2f> tri_prevFeatures;
+  vector<pair<int,pair<int,Point2f>>> tri_prev_points_map = points1_map;
+  Feature::featureTracking(image1,image2,points1,points2,points1_map,points2_map, status,points2_tmp);
+  
+  Feature::erase_int_point2f(image1,points2_tmp,tri_prev_points_map,status);
+  
+  //TODO: add a fucntion to load these values directly from KITTI's calib files
+  // WARNING: different sequences in the KITTI VO dataset have different intrinsic/extrinsic parameters
+  
+  Mat E, R, t, mask;
+  int index;
+  E = findEssentialMat(points2, points1, focal, pp, RANSAC, 0.999, 1.0, mask);
+  recoverPose(E, points2, points1, R, t, focal, pp, mask);
+
+  get_gt(1, 0, path_to_pose);
+
+  Mat prevImage = image2;
+  Mat currImage;
+  vector<Point2f> prevFeatures = points2;
+  vector<Point2f> currFeatures;
+  vector<pair<int,pair<int,Point2f>>> prev_points_map = points2_map;
+  vector<pair<int,pair<int,Point2f>>> curr_points_map;
+  
+  char filename[100];
+
+  R_f = R.clone();
+  t_f = t.clone();
   
   Mat Rt0 = Mat::eye(3, 4, CV_64FC1);
   Mat Rt1 = Mat::eye(3, 4, CV_64FC1);
- 
-  Mat Kd;
-  K.convertTo(Kd, CV_64F);
 
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr msg(new pcl::PointCloud<pcl::PointXYZRGB>);
+  msg->header.frame_id = "map";
+  msg->height = cloud->height;
+  msg->width = cloud->width;
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud2(new pcl::PointCloud<pcl::PointXYZRGB>);
+    
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr msg2(new pcl::PointCloud<pcl::PointXYZRGB>);
+  pcl::PointXYZRGB point;
+  pcl::PointXYZRGB trajectory;
+  
+  msg2->header.frame_id = "map";
+  msg2->height = cloud2->height;
+  msg2->width = cloud2->width;
 
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr gt_msg(new pcl::PointCloud<pcl::PointXYZRGB>);
+  gt_msg->header.frame_id = "map";
+  gt_msg->height = cloud2->height;
+  gt_msg->width = cloud2->width;
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud3(new pcl::PointCloud<pcl::PointXYZRGB>);
 
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr msg4(new pcl::PointCloud<pcl::PointXYZRGB>);
+  msg4->header.frame_id = "map";
+  msg4->height = cloud2->height;
+  msg4->width = cloud2->width;
+  pcl::PointXYZRGB tracking_points;
 
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr msg(new pcl::PointCloud<pcl::PointXYZRGB>);
-    msg->header.frame_id = "map";
-    msg->height = cloud->height;
-    msg->width = cloud->width;
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud2(new pcl::PointCloud<pcl::PointXYZRGB>);
+  Mat point3d_homo, _p3h, three_to_p, p3d2, p3d22, R_f2, t_f2, R_f1t, t_f1, R_f2t;
+
+  vector<pair<int,pair<int,Point3d>>> point_3d_map;
       
-      pcl::PointCloud<pcl::PointXYZRGB>::Ptr msg2(new pcl::PointCloud<pcl::PointXYZRGB>);
-      pcl::PointXYZRGB point;
-      pcl::PointXYZRGB trajectory;
-      
-      msg2->header.frame_id = "map";
-      msg2->height = cloud2->height;
-      msg2->width = cloud2->width;
-
- pcl::PointCloud<pcl::PointXYZRGB>::Ptr gt_msg(new pcl::PointCloud<pcl::PointXYZRGB>);
-gt_msg->header.frame_id = "map";
-      gt_msg->height = cloud2->height;
-      gt_msg->width = cloud2->width;
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud3(new pcl::PointCloud<pcl::PointXYZRGB>);
-
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr msg4(new pcl::PointCloud<pcl::PointXYZRGB>);
-msg4->header.frame_id = "map";
-      msg4->height = cloud2->height;
-      msg4->width = cloud2->width;
-
-pcl::PointXYZRGB tracking_points;
+  sensor_msgs::ImagePtr image_msg;
 
 
 
-
-
-
-Mat point3d_homo;
-      Mat _p3h;
-      Mat three_to_p;
-      Mat p3d2;
-      Mat p3d22;
-
-Mat R_f2, t_f2;     
-      Mat R_f1t;
-      Mat t_f1;
-      Mat R_f2t; 
-vector<pair<int,pair<int,Point3d>>> point_3d_map;
-      
-sensor_msgs::ImagePtr image_msg;
-
-
-
-    Mat rvec,tvec;
+  Mat rvec,tvec;
     // Eigen::Matrix<double,3,1> rvec;
     // Eigen::Matrix<double,3,1> tvec;
 
-    Mat R_solve;
-    Mat R_solve_inv;
-    Mat t_solve_inv;
-    Mat R_solve_prev;
-    Mat t_solve_prev;
-    Mat t_solve_f;
-    R = R.t();
+  Mat R_solve;
+  Mat R_solve_inv;
+  Mat t_solve_inv;
+  Mat R_solve_prev;
+  Mat t_solve_prev;
+  Mat t_solve_f;
+  R = R.t();
     
 
 
@@ -404,7 +361,7 @@ t_solve_f_vec.push_back(Point3d(0,0,0));
 
 
     
-      while(ros::ok){
+      
         while (init_check==0){
           cout<<"frame start"<<"\n";
       sprintf(filename1, path_to_image, numFrame);
@@ -415,8 +372,8 @@ t_solve_f_vec.push_back(Point3d(0,0,0));
        
       
       float prev=prevFeatures.size();
-      featureTracking(prevImage, currImage, prevFeatures, currFeatures,prev_points_map,curr_points_map,status,points2_tmp);
-      erase_int_point2f(currImage,points2_tmp,tri_prev_points_map,status);
+      Feature::featureTracking(prevImage, currImage, prevFeatures, currFeatures,prev_points_map,curr_points_map,status,points2_tmp);
+      Feature::erase_int_point2f(currImage,points2_tmp,tri_prev_points_map,status);
       float curr=currFeatures.size();
       float tracking_ratio=curr/prev;
       //cout<<"tracking_ratio: "<<tracking_ratio<<"\n";
@@ -443,7 +400,7 @@ t_solve_f_vec.push_back(Point3d(0,0,0));
       //waitKey();
       recoverPose(E, currFeatures,prevFeatures , R, t, focal, pp, mask);
 
-      scale = getAbsoluteScale(numFrame, 0,path_to_pose);
+      // scale = getAbsoluteScale(numFrame, 0,path_to_pose);
       get_gt(numFrame, 0,path_to_pose);
 
 
@@ -479,26 +436,6 @@ t_solve_f_vec.push_back(Point3d(0,0,0));
     int d = -int(gt_z) +800;
       
 
-    //circle(traj, Point(c,d),1,CV_RGB(0,0,255),2);
-
-    //circle(traj,Point(x,y),1,CV_RGB(0,255,0),2);
-
-    //rectangle( traj, Point(10, 30), Point(570, 50), CV_RGB(0,0,0), CV_FILLED);
-    //sprintf(text, "Coordinates: x = %02fm y = %02fm z = %02fm", t_f.at<double>(0), t_f.at<double>(1), t_f.at<double>(2));
-    //putText(traj, text, textOrg, fontFace, fontScale, Scalar::all(255), thickness, 8);
-
-    
-
-    //imshow( "Road facing camera", currImage_c );
-    //imshow( "Trajectory", traj );
-  
-         
-    
-
-      
-    //msg2->points.push_back(trajectory);
-    
-
     
     trajectory.x=gt_x;
     trajectory.y=gt_y;
@@ -513,43 +450,16 @@ t_solve_f_vec.push_back(Point3d(0,0,0));
     image_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", currImage_c).toImageMsg();
     image_pub.publish(image_msg);
 
-//        marker.header.frame_id = "map";
-// marker.header.stamp = ros::Time();
-// marker.ns = "my_namespace";
-// marker.id = 0;
-// marker.type = visualization_msgs::Marker::SPHERE;
-// marker.action = visualization_msgs::Marker::ADD;
-// marker.pose.position.x = gt_x;
-// marker.pose.position.y = gt_y;
-// marker.pose.position.z = gt_z;
-// marker.pose.orientation.x = 0.0;
-// marker.pose.orientation.y = 0.0;
-// marker.pose.orientation.z = 0.0;
-// marker.pose.orientation.w = 1.0;
-// marker.scale.x = 2;
-// marker.scale.y = 2;
-// marker.scale.z = 2;
-// marker.color.a = 1.0; // Don't forget to set the alpha!
-// marker.color.r = 0.0;
-// marker.color.g = 255.0;
-// marker.color.b = 0.0;
-// //only if using a MESH_RESOURCE marker type:
-
-// marker_pub.publish( marker );
-// waitKey();
 
     waitKey(50);
     
 
-
-
-
 if (e_inlier_ratio<0.5){
-  featureDetection(prevImage, prevFeatures, prev_points_map,keyframe_num,MAX_CORNERS);
+  Feature::featureDetection(prevImage, prevFeatures, prev_points_map,keyframe_num,MAX_CORNERS);
      
     tri_prev_points_map = prev_points_map;
-    featureTracking(prevImage, currImage, prevFeatures, currFeatures,prev_points_map,curr_points_map, status,points2_tmp);
-    erase_int_point2f(prevImage,points2_tmp,tri_prev_points_map,status);
+    Feature::featureTracking(prevImage, currImage, prevFeatures, currFeatures,prev_points_map,curr_points_map, status,points2_tmp);
+    Feature::erase_int_point2f(prevImage,points2_tmp,tri_prev_points_map,status);
     
     R_f2t.copyTo(Rt0.rowRange(0,3).colRange(0,3));
     t_f2.copyTo(Rt0.rowRange(0,3).col(3));
@@ -624,8 +534,6 @@ if (prevFeatures.size() < 200)	{
       float y_para2=currFeatures[i].y-tri_prevFeatures[i].y;
 
       parallax2=sqrt(x_para2*x_para2+y_para2*y_para2);
-//(sqrt( pow(point.x-t_f.at<double>(0),2)+pow(point.y-t_f.at<double>(1),2)+pow(point.z-t_f.at<double>(2),2) ) < 30)
-//&&(sqrt(point_diff_x+point_diff_y)<10)
 
       if (  //(sqrt( pow(point.x-t_f.at<double>(0),2)+pow(point.y-t_f.at<double>(1),2)+pow(point.z-t_f.at<double>(2),2) ) < 150)
           //&& (sqrt( pow(point.x-t_f.at<double>(0),2)+pow(point.y-t_f.at<double>(1),2)+pow(point.z-t_f.at<double>(2),2) ) > 1)
@@ -649,14 +557,7 @@ if (prevFeatures.size() < 200)	{
   currFeatures.erase(currFeatures.begin(),currFeatures.begin()+currFeatures_size);
   curr_points_map.erase(curr_points_map.begin(),curr_points_map.begin()+currFeatures_size);
   tri_prev_points_map.erase(tri_prev_points_map.begin(),tri_prev_points_map.begin()+currFeatures_size);
-  //curr_keypoints.erase(curr_keypoints.begin(),curr_keypoints.begin()+currFeatures_size);
-    // imshow( "Road facing camera", currImage_c );
-    // waitKey();
-  
-    // imshow( "Road facing camera", currImage_c );
-    //   waitKey();
-    // cout<<currFeatures.size()<<"\n";
-    // waitKey();
+
     if (currFeatures.size()>0.1*200){
       keyframe_number++;
 
@@ -741,12 +642,12 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
 
 
 
-    featureDetection(prevImage, new_prevFeatures,new_prev_points_map,keyframe_num,MAX_CORNERS);
+    Feature::featureDetection(prevImage, new_prevFeatures,new_prev_points_map,keyframe_num,MAX_CORNERS);
     
     
     new_tri_prev_points_map=new_prev_points_map;
-    featureTracking(prevImage, currImage, new_prevFeatures, new_currFeatures,new_prev_points_map,new_curr_points_map, status,points2_tmp);
-    erase_int_point2f(prevImage,points2_tmp,new_tri_prev_points_map,status);
+    Feature::featureTracking(prevImage, currImage, new_prevFeatures, new_currFeatures,new_prev_points_map,new_curr_points_map, status,points2_tmp);
+    Feature::erase_int_point2f(prevImage,points2_tmp,new_tri_prev_points_map,status);
     tracking_number_last=new_tri_prev_points_map.size();
       R_tri = R_f2t.clone();
       t_tri = t_f2.clone();
@@ -754,11 +655,6 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
       Rodrigues(R_f1t,local_rvec);
 
       local_tvec=t_f1.clone();
-      // numFrame_vec.push_back(numFrame);
-      // rvec_vec.push_back(Point3d(local_rvec.at<double>(0),local_rvec.at<double>(1),local_rvec.at<double>(2)));
-      // tvec_vec.push_back(Point3d(local_tvec.at<double>(0),local_tvec.at<double>(1),local_tvec.at<double>(2)));
-      
-
       
       R_solve_prev=R_f1t.clone();
       t_solve_prev=t_f1.clone();
@@ -781,17 +677,8 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
       tri_numFrame=numFrame;
       
 
-
-
-
-
-
-
       world_points_pub.publish(msg);
       traj_pub.publish(msg2);
-      
-      
-      
       
       double diagonal = R_f_inv.at<double>(0,0)+R_f_inv.at<double>(1,1)+R_f_inv.at<double>(2,2);
 
@@ -801,18 +688,13 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
 
     }
     else{
-      // vector<Point2f> prevFeatures_tmp=prevFeatures;
-      // vector<pair<int,pair<int,Point2f>>> prev_points_map_tmp=prev_points_map;
-      // featureDetection_esential(prevImage, prevFeatures,prev_points_map,keyframe_num);
-      featureDetection(prevImage, prevFeatures, prev_points_map,keyframe_num,MAX_CORNERS);
-      // for (int i=0;i<prevFeatures.size();i++){
-      //   prevFeatures_tmp.push_back(prevFeatures[i]);
-      //   prev_points_map_tmp.push_back(prev_points_map[i]);
-      // }
+
+      Feature::featureDetection(prevImage, prevFeatures, prev_points_map,keyframe_num,MAX_CORNERS);
+
 
     tri_prev_points_map = prev_points_map;
-    featureTracking(prevImage, currImage, prevFeatures, currFeatures,prev_points_map,curr_points_map, status,points2_tmp);
-    erase_int_point2f(prevImage,points2_tmp,tri_prev_points_map,status);
+    Feature::featureTracking(prevImage, currImage, prevFeatures, currFeatures,prev_points_map,curr_points_map, status,points2_tmp);
+    Feature::erase_int_point2f(prevImage,points2_tmp,tri_prev_points_map,status);
     
     
     R_f2t.copyTo(Rt0.rowRange(0,3).colRange(0,3));
@@ -838,7 +720,7 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
 
 
 //******************************************************************************************pnp start**********************************************************************************************************************************//
-
+while(ros::ok){
  for(numFrame=number_frame+1; numFrame < MAX_FRAME; numFrame++)	{
     
     //cout<<"frame start"<<"\n";
@@ -852,7 +734,7 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
   	vector<uchar> status;
     
   
-    featureTracking(prevImage, currImage, prevFeatures, currFeatures,prev_points_map,curr_points_map, status,points2_tmp);
+    Feature::featureTracking(prevImage, currImage, prevFeatures, currFeatures,prev_points_map,curr_points_map, status,points2_tmp);
     
     int indexCorrection = 0;
   for( int i=0; i<status.size(); i++)
@@ -932,8 +814,8 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
     // waitKey();
 
     vector<uchar> status1;
-    featureTracking(prevImage, currImage, new_prevFeatures, new_currFeatures,new_prev_points_map,new_curr_points_map, status1,points2_tmp);
-    erase_int_point2f(prevImage,points2_tmp,new_tri_prev_points_map,status1);
+    Feature::featureTracking(prevImage, currImage, new_prevFeatures, new_currFeatures,new_prev_points_map,new_curr_points_map, status1,points2_tmp);
+    Feature::erase_int_point2f(prevImage,points2_tmp,new_tri_prev_points_map,status1);
     
     float parallax=0;
 
@@ -987,7 +869,7 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
     //cout<<"corr_3d_point: "<<corr_3d_point.size()<<"\n";
     
     
-    solvePnPRansac(corr_3d_point,corr_2d_pointd,Kd,noArray(),rvec,tvec,false,100,3.0F,0.99,array,SOLVEPNP_ITERATIVE);
+    solvePnPRansac(corr_3d_point,corr_2d_pointd,Kd,noArray(),rvec,tvec,false,100,3.0F,0.99,array,SOLVEPNP_P3P);
     // cout<<rvec<<"\n";
     // cout<<tvec<<"\n";
     float inlier_ratio=float(array.rows)/float(corr_2d_pointd.size());
@@ -1134,42 +1016,7 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
     R_solve.copyTo(Relative_homo_R.rowRange(0,3).colRange(0,3));
     tvec.copyTo(Relative_homo_R.rowRange(0,3).col(3));
 
-    //diff=0;
 
-    //currImage_c = imread(filename);
-    //cout<<corr_3d_point.size()<<"\n";
-  //   for(int i = 0; i < corr_3d_point.size(); i++) {
-      
-  //     int m = corr_2d_pointd.at(i).x;
-  //     int n = corr_2d_pointd.at(i).y;
-  //     circle(currImage_c, Point(m, n) ,2, CV_RGB(0,0,255), 2);
-      
-  //     int corr_3d_point_int = corr_3d_point.size();
-  //     Mat prev_p3hh(4,corr_3d_point_int,CV_64F);
-  //     // Mat prev_p3d2;
-  //     // Mat prev_p3d22;
-  //     Mat prev_p3h;
-  //     prev_p3h = prev_p3hh.col(i); 
-  //     // prev_p3d2 = prev_p3h/prev_p3h.at<float>(3);
-  //     // prev_p3d2.convertTo(prev_p3d22, CV_64F);
-  //     prev_p3h.at<double>(0)=corr_3d_point.at(i).x;
-  //     prev_p3h.at<double>(1)=corr_3d_point.at(i).y;
-  //     prev_p3h.at<double>(2)=corr_3d_point.at(i).z;
-  //     prev_p3h.at<double>(3)=1;
-      
-  //       three_to_p=Kd*Relative_homo_R*prev_p3h;
-  //       int c = int(three_to_p.at<double>(0) / three_to_p.at<double>(2));
-  //       int d = int(three_to_p.at<double>(1) / three_to_p.at<double>(2));
-  //       circle(currImage_c, Point(c, d) ,2, CV_RGB(0,255,0), 2);
-      
-  //     int point_diff_x = (m-c)*(m-c);
-  //     int point_diff_y = (n-d)*(n-d);
-      
-      
-  //     //diff += (sqrt(point_diff_x+point_diff_y));
-      
-  // }
-  
   image_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", currImage_c).toImageMsg();
     image_pub.publish(image_msg);
     
@@ -1189,16 +1036,7 @@ t_solve_f_vec.push_back(Point3d(t_f.at<double>(0),t_f.at<double>(1),t_f.at<doubl
 
     double distance_prev_keyframe=sqrt(t_x*t_x+t_y*t_y+t_z*t_z);
     
-    //cout<<"traveled distance prev keyframe: "<<distance_prev_keyframe<<" m"<<"\n";
-    
-//(inlier_ratio<0.6)||(tracking_ratio<0.3)
-    
-//(corr_2d_pointd_number<50)||(new_prevFeatures.size()<200)
-//(tracking_ratio<0.85)&&(parallax>=15)
-//&&(distance_prev_keyframe>=1)
-//&&(parallax>=15)
 
-//&&(parallax>=15)&&(distance_prev_keyframe>=1)
 /**************************************************************3d point Insert******************************************************************************/
 
      if (((inlier_ratio<inlier_ratio_def))||(new_currFeatures.size()<200))	{////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1372,11 +1210,22 @@ vector<pair<int,pair<int,Point3d>>> point_3d_map_tmp_tmp=point_3d_map_tmp_tmp2;
 
 // cout<<" after new_currFeatures_tmp_tmp2 size: " << new_currFeatures_tmp_tmp2.size()<<"\n";
 
-
+//push 3d point that did not exist before
     for (int i=0;i<point_3d_map_tmp_tmp.size();i++){
       point_3d_map_tmp.push_back(point_3d_map_tmp_tmp[i]);
       new_currFeatures_tmp.push_back(new_currFeatures_tmp_tmp[i]);
       new_curr_points_map_tmp.push_back(new_curr_points_map_tmp_tmp[i]);
+
+      point = cloud->points[i];
+      point.x = point_3d_map_tmp_tmp[i].second.second.x;
+      point.y = point_3d_map_tmp_tmp[i].second.second.y;
+      point.z = point_3d_map_tmp_tmp[i].second.second.z;
+      point.r=100;
+      point.g=100;
+      point.b=100;
+
+      msg->points.push_back(point);
+
     }
     // if points are created more than 300, just erase excess points in the end.
     if (new_currFeatures_tmp.size()>max_feature_number){
@@ -1460,7 +1309,7 @@ vector<pair<int,pair<int,Point3d>>> point_3d_map_tmp_tmp=point_3d_map_tmp_tmp2;
         circle(currImage_c, Point(c,d),2,CV_RGB(72,209,204),2);  
         }
         
-        msg->points.push_back(point);
+        // msg->points.push_back(point);
         // point_3d_map.push_back(make_pair(new_curr_points_map[i].first,make_pair(new_curr_points_map[i].second.first,Point3d(point.x,point.y,point.z))));
         // //point_3d_map_first.push_back(new_curr_points_map[i].first);
         // new_currFeatures.push_back(new_currFeatures[i]);
@@ -1629,24 +1478,24 @@ if (number_of_3d_points.size()>=2){
             }
           //cout<<it-BA_3d_map_points.begin()<<"\n";
           
-          if (i<half_3d_points){
-                // cout<<i<<"\n";
-              ceres::CostFunction* cost_function2 = 
-          new ceres::AutoDiffCostFunction<SnavelyReprojectionError_Local_pose_fixed, 2,3>(
-            new SnavelyReprojectionError_Local_pose_fixed(BA_2d_points_eig[0],BA_2d_points_eig[1],focal,pp.x,pp.y,i,number_of_3d_points_eig,rvec_eig_local.col(index_vec),tvec_eig_local.col(index_vec))
-          );
+    //       if (i<half_3d_points){
+    //             // cout<<i<<"\n";
+    //           ceres::CostFunction* cost_function2 = 
+    //       new ceres::AutoDiffCostFunction<SnavelyReprojectionError_Local_pose_fixed, 2,3>(
+    //         new SnavelyReprojectionError_Local_pose_fixed(BA_2d_points_eig[0],BA_2d_points_eig[1],focal,pp.x,pp.y,i,number_of_3d_points_eig,rvec_eig_local.col(index_vec),tvec_eig_local.col(index_vec))
+    //       );
        
     
-    problem2.AddResidualBlock(cost_function2,
-                             NULL ,
-                             BA_3d_points_eig.col(it-BA_3d_map_points.begin()).data());
+    // problem2.AddResidualBlock(cost_function2,
+    //                          NULL ,
+    //                          BA_3d_points_eig.col(it-BA_3d_map_points.begin()).data());
 
-          }
-          else{
+    //       }
+    //       else{
            ceres::CostFunction* cost_function2 = 
           new ceres::AutoDiffCostFunction<SnavelyReprojectionError_Local, 2, 3,3,3>(
             new SnavelyReprojectionError_Local(BA_2d_points_eig[0],BA_2d_points_eig[1],focal,pp.x,pp.y,i,number_of_3d_points_eig)
-          );
+           );
        
     
     problem2.AddResidualBlock(cost_function2,
@@ -1654,7 +1503,7 @@ if (number_of_3d_points.size()>=2){
                              rvec_eig_local.col(index_vec).data(),
                              tvec_eig_local.col(index_vec).data(),
                              BA_3d_points_eig.col(it-BA_3d_map_points.begin()).data());
-          }
+          //}
       
       }
       
@@ -2202,7 +2051,7 @@ int repro_sum=0;
           }
           
           
-          solvePnPRansac(corr_3d_point_tmp,corr_2d_point_tmp,Kd,noArray(),rvec_tmp2,tvec_tmp2,false,100,3.0F,0.99,array,SOLVEPNP_ITERATIVE);
+          solvePnPRansac(corr_3d_point_tmp,corr_2d_point_tmp,Kd,noArray(),rvec_tmp2,tvec_tmp2,false,100,3.0F,0.99,array,SOLVEPNP_P3P);
 
 
           // cout<<corr_3d_point_tmp.size()<<"\n";
@@ -2537,7 +2386,7 @@ int repro_sum=0;
         //cout<<"initializing ..."<<"\n";
         optimizer_sim3.initializeOptimization();
        // cout << "optimizing ..." << endl;
-        optimizer_sim3.optimize(100);
+        optimizer_sim3.optimize(300);
         
 
 
@@ -3133,7 +2982,7 @@ point_3d_map.erase(point_3d_map.begin(),point_3d_map.begin()+point_3d_map_size);
   
       //if (abs(rot_ang_diff)<3.0){
        //cout<<"detect next feature"<<"\n";
-        featureDetection(prevImage, new_prevFeatures,new_prev_points_map,keyframe_num,MAX_CORNERS);
+        Feature::featureDetection(prevImage, new_prevFeatures,new_prev_points_map,keyframe_num,MAX_CORNERS);
       
       // else{
       //   featureDetection(prevImage, new_prevFeatures,new_prev_points_map,2000);
@@ -3143,8 +2992,8 @@ point_3d_map.erase(point_3d_map.begin(),point_3d_map.begin()+point_3d_map_size);
       new_tri_prev_points_map=new_prev_points_map;
       //cout<<"tracking next feature"<<"\n";
       vector<uchar> status2;
-      featureTracking(prevImage, currImage, new_prevFeatures, new_currFeatures,new_prev_points_map,new_curr_points_map, status2,points2_tmp);
-      erase_int_point2f(prevImage,points2_tmp,new_tri_prev_points_map,status2);
+      Feature::featureTracking(prevImage, currImage, new_prevFeatures, new_currFeatures,new_prev_points_map,new_curr_points_map, status2,points2_tmp);
+      Feature::erase_int_point2f(prevImage,points2_tmp,new_tri_prev_points_map,status2);
       //cout<<"new tracking feature number: "<<new_currFeatures.size()<<"\n";
       // new_prevFeatures = new_currFeatures;
       //  new_prev_points_map = new_curr_points_map;
@@ -3188,7 +3037,7 @@ point_3d_map.erase(point_3d_map.begin(),point_3d_map.begin()+point_3d_map_size);
          
 
 
-    waitKey(50);
+    
 
         
     //cout<<"Frame end"<<"\n";
