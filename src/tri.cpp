@@ -3,6 +3,7 @@
 #include "tripkg/vo.h"
 #include "tripkg/Feature.h"
 #include "tripkg/loadfile.h"
+#include "tripkg/bundle.h"
 
 #define MAX_FRAME 5000
 #define MIN_NUM_FEAT 2000
@@ -28,22 +29,8 @@ using namespace g2o;
 
 extern "C" void G2O_FACTORY_EXPORT g2o_type_VertexSE3(void);
 
-bool compare_point (pair<int,pair<int,Point3d>> a,
-                    pair<int,pair<int,Point3d>> b){
-                      if(a.first==b.first){
-                        return a.second.first<b.second.first;
-                      }
-                      
-                        return a.first<b.first;
-                      
-                    }
 
-bool compare_point2 (pair<int,Point3d> a,
-                    pair<int,Point3d> b){
-                      
-                        return a.first<b.first;
-                      
-                    }
+
 
 
 
@@ -90,8 +77,6 @@ int main(int argc, char **argv){
   Mat Kd = (Mat_<double>(3,3)<< focal, 0, pp.x,
                               0, focal, pp.y,
                               0,  0,   1);
-
-
 
   Mat R_f, t_f; //the final rotation and tranlation vectors containing the 
   
@@ -930,74 +915,10 @@ while(ros::ok){
     //cout<<point_3d_map.size()<<"\n";
 //imshow( "Road facing camera", currImage_c );
    
-//****************************************************************************************************motion only BA************************************************************************************************//
-    //cout<<"motion only BA start!!"<<"\n";
-    Eigen::Vector3d rvec_eig;
-    Eigen::Vector3d tvec_eig;
-    rvec_eig[0]=rvec.at<double>(0);
-    rvec_eig[1]=rvec.at<double>(1);
-    rvec_eig[2]=rvec.at<double>(2);
-    
-    tvec_eig[0]=tvec.at<double>(0);
-    tvec_eig[1]=tvec.at<double>(1);
-    tvec_eig[2]=tvec.at<double>(2);
-    
-    Eigen::MatrixXd corr_2d_point_eig(2,corr_2d_pointd.size());
-
-    for (int i=0;i<corr_2d_pointd.size();i++){
-      corr_2d_point_eig(0,i)=corr_2d_pointd[i].x;
-      corr_2d_point_eig(1,i)=corr_2d_pointd[i].y;
-    }
-    
-
-    Eigen::MatrixXd corr_3d_point_eig(4,corr_3d_point.size());
-
-    for (int i=0;i<corr_3d_point.size();i++){
-      corr_3d_point_eig(0,i)=corr_3d_point[i].x;
-      corr_3d_point_eig(1,i)=corr_3d_point[i].y;
-      corr_3d_point_eig(2,i)=corr_3d_point[i].z;
-      corr_3d_point_eig(3,i)=1;
-    }
-    
-    ceres::Problem problem;
-
-    for (int i = 0; i < corr_3d_point.size(); i++) {
-    // Each Residual block takes a point and a camera as input and outputs a 2
-    // dimensional residual. Internally, the cost function stores the observed
-    // image location and compares the reprojection against the observation.
 
     
-    ceres::CostFunction* cost_function = 
-          new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 3,3>(
-            new SnavelyReprojectionError(corr_2d_point_eig(0,i), corr_2d_point_eig(1,i),corr_3d_point_eig.col(i),focal,pp.x,pp.y)
-            );
+    bundle::motion_only_BA(rvec, tvec, corr_2d_pointd, corr_3d_point, focal, pp);
 
-    problem.AddResidualBlock(cost_function,
-                             NULL ,
-                             rvec_eig.data(),
-                             tvec_eig.data());
-
-  }
-
-  ceres::Solver::Options options;
-  options.linear_solver_type = ceres::DENSE_SCHUR;
-  options.minimizer_progress_to_stdout = false;
-  options.num_threads = 12;
-  options.max_num_iterations=100;
-  ceres::Solver::Summary summary;
-  ceres::Solve(options, &problem, &summary);
-  //std::cout << summary.FullReport() << "\n";
-
- 
-
-   for (int i=0;i<3;i++){
-      rvec.at<double>(i)=double(rvec_eig[i]);
-      tvec.at<double>(i)=double(tvec_eig[i]);
-    }
-
-   //cout<<"motion only BA end!!"<<"\n";
-    //***********************************************************************************motion only BA end********************************************************************************//
-   
 
     Rodrigues(rvec,R_solve);
     
@@ -1382,7 +1303,7 @@ if ((numFrame-numFrame_prev>=min_keyframe)||(rot_ang_diff>1.0)){
       BA_3d_points_map_tmp=BA_3d_points_map;
       int BA_3d_points_map_tmp_size=BA_3d_points_map_tmp.size();
       
-      sort(BA_3d_points_map_tmp.begin(),BA_3d_points_map_tmp.end(),compare_point);
+      sort(BA_3d_points_map_tmp.begin(),BA_3d_points_map_tmp.end(),bundle::compare_point);
       BA_3d_points_map_tmp.erase(unique(BA_3d_points_map_tmp.begin(),BA_3d_points_map_tmp.end()),BA_3d_points_map_tmp.end());
       
       BA_3d_map_points.clear();
@@ -1404,177 +1325,13 @@ numFrame_prev=numFrame-1;
       //***************************************************************************************************local BA***************************************************************************************************************//
 #if (local_ba>0)
 if (number_of_3d_points.size()>=2){
-
-  //cout<<number_of_3d_points.size()<<"\n";
-
-  //cout<<"local BA start"<<"\n";
-  //cout<<"before local ba tvec: "<<tvec.at<double>(0)<<" "<<tvec.at<double>(1)<<" "<<tvec.at<double>(2)<<"\n";
-
-    int rvec_eig_local_size=rvec_vec.size();
-   
-    Eigen::MatrixXd rvec_eig_local(3,rvec_eig_local_size);
-    Eigen::MatrixXd tvec_eig_local(3,rvec_eig_local_size);
-
-
-    for (int i=0; i<rvec_eig_local_size;i++){
-      rvec_eig_local(0,i)=rvec_vec[i].x;
-      rvec_eig_local(1,i)=rvec_vec[i].y;
-      rvec_eig_local(2,i)=rvec_vec[i].z;
-      tvec_eig_local(0,i)=tvec_vec[i].x;
-      tvec_eig_local(1,i)=tvec_vec[i].y;
-      tvec_eig_local(2,i)=tvec_vec[i].z;
-    }    
-    
-   
-    Eigen::VectorXd BA_2d_points_eig(2);
-    Eigen::MatrixXd BA_3d_points_eig(3,BA_3d_points_map_tmp.size());
-    Eigen::VectorXi number_of_3d_points_eig(number_of_3d_points.size());
-    
-    int half_3d_points=0;
-    for (int i=0;i<rvec_eig_local_size;i++){
-      number_of_3d_points_eig[i]=number_of_3d_points[i];
-      //cout<<number_of_3d_points_eig[i]<<"\n";
-      if (i<rvec_eig_local_size/2){
-        half_3d_points+=number_of_3d_points_eig[i];
-      }
-    }
-    
-
-    for (int i=0;i<BA_3d_points_map_tmp.size();i++){
-      BA_3d_points_eig(0,i)=BA_3d_points_map_tmp[i].second.second.x;
-      BA_3d_points_eig(1,i)=BA_3d_points_map_tmp[i].second.second.y;
-      BA_3d_points_eig(2,i)=BA_3d_points_map_tmp[i].second.second.z;
-      // BA_3d_points_eig(3,i)=1;
-      
-    }
-    
-    
-    
-    ceres::Problem problem2;
-    
-    int index_vec=0;
-    
-    //cout<<half_3d_points<<"\n";
-    //-number_of_3d_points[local_ba_frame-1]
-    for (int i = 0; i < BA_2d_points_map.size(); i++) {
-          index++;
-          //cout<<BA_2d_points_map.at(i).first*10000+BA_2d_points_map.at(i).second.first<<"\n";
-          auto it =find(BA_3d_map_points.begin(), BA_3d_map_points.end(), BA_2d_points_map.at(i).first*10000+BA_2d_points_map.at(i).second.first);
-          
-          //auto it = BA_3d_map_points.find(BA_2d_points_map[j].at(i).first*1000+BA_2d_points_map[j].at(i).second.first);
-          BA_2d_points_eig[0]=(double)BA_2d_points_map.at(i).second.second.x;
-          BA_2d_points_eig[1]=(double)BA_2d_points_map.at(i).second.second.y;
-          
-
-          int index_vec_num=0;
-          for (int j = 0; j < number_of_3d_points.size(); j++)
-            {
-              index_vec_num += number_of_3d_points[j];
-              if (i < index_vec_num)
-              {
-                index_vec = j;
-                break;
-              }
-            }
-          //cout<<it-BA_3d_map_points.begin()<<"\n";
-          
-    //       if (i<half_3d_points){
-    //             // cout<<i<<"\n";
-    //           ceres::CostFunction* cost_function2 = 
-    //       new ceres::AutoDiffCostFunction<SnavelyReprojectionError_Local_pose_fixed, 2,3>(
-    //         new SnavelyReprojectionError_Local_pose_fixed(BA_2d_points_eig[0],BA_2d_points_eig[1],focal,pp.x,pp.y,i,number_of_3d_points_eig,rvec_eig_local.col(index_vec),tvec_eig_local.col(index_vec))
-    //       );
-       
-    
-    // problem2.AddResidualBlock(cost_function2,
-    //                          NULL ,
-    //                          BA_3d_points_eig.col(it-BA_3d_map_points.begin()).data());
-
-    //       }
-    //       else{
-           ceres::CostFunction* cost_function2 = 
-          new ceres::AutoDiffCostFunction<SnavelyReprojectionError_Local, 2, 3,3,3>(
-            new SnavelyReprojectionError_Local(BA_2d_points_eig[0],BA_2d_points_eig[1],focal,pp.x,pp.y,i,number_of_3d_points_eig)
-           );
-       
-    
-    problem2.AddResidualBlock(cost_function2,
-                             NULL ,
-                             rvec_eig_local.col(index_vec).data(),
-                             tvec_eig_local.col(index_vec).data(),
-                             BA_3d_points_eig.col(it-BA_3d_map_points.begin()).data());
-          //}
-      
-      }
-      
-    //   cout<<"BA_3d_points_map_tmp size: "<<BA_3d_points_map_tmp.size()<<"\n";
-    //  waitKey();
-      
-  //cout<<"local BA solver start"<<"\n";
-  ceres::Solver::Options options;
-  options.linear_solver_type = ceres::DENSE_SCHUR;
-  options.minimizer_progress_to_stdout = false;
-  options.num_threads = 12;
-  options.max_num_iterations=100;
-
-  ceres::Solver::Summary summary;
-  ceres::Solve(options, &problem2, &summary);
-  
-  
-  rvec_vec.clear();
-  vector <Point3d>().swap(rvec_vec);
-  tvec_vec.clear();
-  vector <Point3d>().swap(tvec_vec);
-   for (int i=0;i<rvec_eig_local_size;i++){
-     double rvec_eig_1=rvec_eig_local(0,i);
-     double rvec_eig_2=rvec_eig_local(1,i);
-     double rvec_eig_3=rvec_eig_local(2,i);
-     double tvec_eig_1=tvec_eig_local(0,i);
-     double tvec_eig_2=tvec_eig_local(1,i);
-     double tvec_eig_3=tvec_eig_local(2,i);
-     
-     
-      rvec_vec.push_back(Point3d(rvec_eig_1,rvec_eig_2,rvec_eig_3));
-      tvec_vec.push_back(Point3d(tvec_eig_1,tvec_eig_2,tvec_eig_3));
-      
-    }
-    
-    
-    int BA_3d_points_map_size=BA_3d_points_map.size();
-    // vector <pair<int,pair<int,Point3d>>>().swap(BA_3d_points_map);
-    int point_3d_map_size=point_3d_map.size();
-  for (int i=0;i<BA_3d_points_map_size;i++){
-      int map_first=BA_3d_points_map[i].first;
-      int map_second_first=BA_3d_points_map[i].second.first;
-      
-      auto it =find(BA_3d_map_points.begin(), BA_3d_map_points.end(), map_first*10000+map_second_first);
-      if (it==BA_3d_map_points.end()){
-            cout<<"fail"<<"\n";
-            
-            waitKey();
-          }
-      int eig_index=it-BA_3d_map_points.begin();
-      BA_3d_points_map.push_back(make_pair(BA_3d_points_map[i].first,make_pair(BA_3d_points_map[i].second.first,Point3d(BA_3d_points_eig(0,eig_index),BA_3d_points_eig(1,eig_index),BA_3d_points_eig(2,eig_index)))));
-      
-      if (i>=BA_3d_points_map_size-number_of_3d_points[number_of_3d_points.size()-1]){
-        point_3d_map.push_back(make_pair(BA_3d_points_map[i].first,make_pair(BA_3d_points_map[i].second.first,Point3d(BA_3d_points_eig(0,eig_index),BA_3d_points_eig(1,eig_index),BA_3d_points_eig(2,eig_index)))));
-      }
-    }
-    
-BA_3d_points_map.erase(BA_3d_points_map.begin(),BA_3d_points_map.begin()+BA_3d_points_map_size);
-point_3d_map.erase(point_3d_map.begin(),point_3d_map.begin()+point_3d_map_size);
-
-     
-
-  rvec.at<double>(0)=rvec_vec[rvec_eig_local_size-1].x;
-  rvec.at<double>(1)=rvec_vec[rvec_eig_local_size-1].y;
-  rvec.at<double>(2)=rvec_vec[rvec_eig_local_size-1].z;
-
-  tvec.at<double>(0)=tvec_vec[rvec_eig_local_size-1].x;
-  tvec.at<double>(1)=tvec_vec[rvec_eig_local_size-1].y;
-  tvec.at<double>(2)=tvec_vec[rvec_eig_local_size-1].z;
-
-  
+  bundle::localBA(rvec_vec, tvec_vec,
+            BA_3d_points_map_tmp, number_of_3d_points, 
+            BA_2d_points_map, BA_3d_map_points,
+            point_3d_map, focal, pp,
+            BA_3d_points_map,
+            rvec, tvec);
+ 
 
 Rodrigues(rvec,R_solve);
    
@@ -2600,7 +2357,7 @@ int repro_sum=0;
        vector<pair<int,pair<int,Point3d>>> BA_3d_points_map_tmp_loop=BA_3d_points_map_loop;
         BA_3d_points_map_tmp_size=BA_3d_points_map_tmp_loop.size();
       
-        sort(BA_3d_points_map_tmp_loop.begin(),BA_3d_points_map_tmp_loop.end(),compare_point);
+        sort(BA_3d_points_map_tmp_loop.begin(),BA_3d_points_map_tmp_loop.end(),bundle::compare_point);
         
         // for (int i=0;i<BA_3d_points_map_tmp_loop.size();i++){
         //   cout<<BA_3d_points_map_tmp_loop[i].first<<" "<<BA_3d_points_map_tmp_loop[i].second.first<<"\\";
@@ -2849,7 +2606,7 @@ point_3d_map.erase(point_3d_map.begin(),point_3d_map.begin()+point_3d_map_size);
         {
           
           BA_3d_points_map_tmp=BA_3d_points_map;
-        sort(BA_3d_points_map_tmp.begin(),BA_3d_points_map_tmp.end(),compare_point);
+        sort(BA_3d_points_map_tmp.begin(),BA_3d_points_map_tmp.end(),bundle::compare_point);
         
         vector<pair<int,pair<int,Point3d>>> BA_3d_points_map_rm;
         
