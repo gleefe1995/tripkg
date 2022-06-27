@@ -280,7 +280,7 @@ void localBA(std::vector<cv::Point3d> &rvec_vec, std::vector<cv::Point3d> &tvec_
             std::vector<std::pair<int, std::pair<int, cv::Point3d>>> &BA_3d_points_map_tmp, std::vector<int32_t> &number_of_3d_points, 
             std::vector<std::pair<int, std::pair<int, cv::Point2f>>> &BA_2d_points_map, std::vector<int32_t> &BA_3d_map_points,
             std::vector<std::pair<int,std::pair<int,cv::Point3d>>> &point_3d_map, const double focal, cv::Point2d pp,
-            std::vector<std::pair<int,std::pair<int,cv::Point3d>>> BA_3d_points_map,
+            std::vector<std::pair<int,std::pair<int,cv::Point3d>>> &BA_3d_points_map,
             cv::Mat &rvec, cv::Mat &tvec)
 {
     int rvec_eig_local_size=rvec_vec.size();
